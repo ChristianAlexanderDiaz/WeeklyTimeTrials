@@ -5,7 +5,7 @@ This command allows users to manually end an active weekly trial challenge
 before its scheduled expiration time.
 """
 
-from typing import List
+from typing import List, Optional, Dict, Any
 import discord
 from discord import app_commands, Interaction
 
