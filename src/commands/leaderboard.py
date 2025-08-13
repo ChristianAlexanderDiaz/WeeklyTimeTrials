@@ -234,7 +234,7 @@ class ActiveTrialsCommand(AutocompleteCommand):
             # Get fastest time if any submissions
             fastest_time_str = "No times yet"
             if participant_count > 0:
-                fastest_time_data = await self._get_fastest_time(trial_id)
+                fastest_time_data = await self._get_fastest_time(trial_id, guild)
                 if fastest_time_data:
                     fastest_time_str = f"{fastest_time_data['time_str']} by {fastest_time_data['username']}"
             
@@ -272,12 +272,13 @@ class ActiveTrialsCommand(AutocompleteCommand):
         results = self._execute_query(query, (trial_id,))
         return results[0]['participant_count']
     
-    async def _get_fastest_time(self, trial_id: int) -> Dict[str, Any]:
+    async def _get_fastest_time(self, trial_id: int, guild) -> Dict[str, Any]:
         """
         Get the fastest time and user for a trial.
         
         Args:
             trial_id: Trial ID
+            guild: Discord guild object for username resolution
             
         Returns:
             Dictionary with fastest time info
@@ -302,9 +303,11 @@ class ActiveTrialsCommand(AutocompleteCommand):
         result = results[0]
         time_str = TimeParser.format_time(result['time_ms'])
         
-        # Note: In a real implementation, you'd want to get the guild context
-        # and resolve the username. For now, we'll use a placeholder.
-        username = f"User {result['user_id']}"
+        # Resolve the actual username from Discord
+        try:
+            username = await get_display_name(result['user_id'], guild)
+        except Exception:
+            username = f"User {result['user_id']}"
         
         return {
             'time_str': time_str,
