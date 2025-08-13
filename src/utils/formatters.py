@@ -60,7 +60,7 @@ class EmbedFormatter:
             timestamp=datetime.now(timezone.utc)
         )
         
-        # Add leaderboard content
+        # Add leaderboard content with separator
         if not leaderboard_data:
             embed.description = "No times submitted yet. Be the first to set a time!"
         else:
@@ -68,6 +68,9 @@ class EmbedFormatter:
                 leaderboard_data, user_display_names
             )
             embed.description = leaderboard_text
+        
+        # Add blank field for spacing
+        embed.add_field(name="\u200b", value="\u200b", inline=False)
         
         # Add goal times section
         goal_times_text = EmbedFormatter._format_goal_times(
@@ -81,7 +84,18 @@ class EmbedFormatter:
             inline=False
         )
         
-        # Add submission info
+        # Add blank field for spacing
+        embed.add_field(name="\u200b", value="\u200b", inline=False)
+        
+        # Add submission info and status in one row
+        status_text = ""
+        if status == 'active':
+            status_text = "🟢 **ACTIVE** - Accepting submissions"
+        elif status == 'expired':
+            status_text = "🟡 **EXPIRED** - Read only"
+        elif status == 'ended':
+            status_text = "🔴 **ENDED** - Manually closed"
+        
         if leaderboard_data:
             total_participants = len(leaderboard_data)
             fastest_time = min(row['time_ms'] for row in leaderboard_data)
@@ -89,29 +103,16 @@ class EmbedFormatter:
             
             embed.add_field(
                 name="📊 Statistics",
-                value=f"**Participants:** {total_participants}\n**Fastest Time:** {fastest_time_str}",
-                inline=True
+                value=f"**Participants:** {total_participants} • **Fastest:** {fastest_time_str}",
+                inline=False
             )
         
         # Add status information
-        if status == 'active':
-            embed.add_field(
-                name="⏰ Status",
-                value="🟢 **ACTIVE** - Accepting submissions",
-                inline=True
-            )
-        elif status == 'expired':
-            embed.add_field(
-                name="⏰ Status", 
-                value="🟡 **EXPIRED** - Read only",
-                inline=True
-            )
-        elif status == 'ended':
-            embed.add_field(
-                name="⏰ Status",
-                value="🔴 **ENDED** - Manually closed",
-                inline=True
-            )
+        embed.add_field(
+            name="⏰ Status",
+            value=status_text,
+            inline=False
+        )
         
         embed.set_footer(text="Use /save to submit your time!")
         return embed
@@ -180,7 +181,7 @@ class EmbedFormatter:
         silver_str = TimeParser.format_time(silver_ms)
         bronze_str = TimeParser.format_time(bronze_ms)
         
-        return f"🥇 {gold_str}\n🥈 {silver_str}\n🥉 {bronze_str}"
+        return f"🥇 **{gold_str}**  •  🥈 **{silver_str}**  •  🥉 **{bronze_str}**"
     
     @staticmethod
     def create_time_submission_embed(trial_data: Dict[str, Any], 

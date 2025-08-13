@@ -273,6 +273,12 @@ async def initialize_database() -> None:
         
     except FileNotFoundError:
         logger.warning("Schema file not found - assuming tables already exist")
+    except psycopg2.errors.DuplicateTable as e:
+        # This is expected when tables already exist from previous deployments
+        logger.info("✓ Database tables already exist - continuing normally")
+    except psycopg2.errors.DuplicateObject as e:
+        # This covers indexes and other objects that might already exist
+        logger.info("✓ Database objects already exist - continuing normally")
     except Exception as e:
         logger.error(f"Failed to initialize database schema: {e}")
         raise
