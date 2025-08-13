@@ -54,14 +54,23 @@ class DatabaseManager:
                 **db_config
             )
             
-            # Test the connection by executing a simple query
-            with self.get_connection() as conn:
-                with conn.cursor() as cursor:
+            # Test the connection by getting a connection directly from pool
+            test_conn = None
+            try:
+                test_conn = self._pool.getconn()
+                if test_conn is None:
+                    raise RuntimeError("Failed to get test connection from pool")
+                
+                with test_conn.cursor() as cursor:
                     cursor.execute("SELECT 1")
                     result = cursor.fetchone()
                     if result[0] != 1:
                         raise Exception("Database connection test failed")
+            finally:
+                if test_conn:
+                    self._pool.putconn(test_conn)
             
+            # Mark as initialized only after successful test
             self._initialized = True
             logger.info("✓ Database connection pool initialized successfully")
             
