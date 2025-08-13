@@ -82,7 +82,7 @@ class RemoveTimeCommand(AutocompleteCommand):
             "Time Removed",
             f"Your time of **{removed_time_str}** has been removed from "
             f"**Weekly Time Trial #{trial_number} - {track_name}**.",
-            "You can submit a new time using the `/save` command."
+            "You can submit a new time using the `/weeklytimesave` command."
         )
         
         await self._send_response(interaction, embed=embed, ephemeral=True)
@@ -206,7 +206,7 @@ def setup_remove_time_command(tree: app_commands.CommandTree) -> None:
         Remove your submitted time from an active weekly trial.
         
         This permanently deletes your time submission. You can submit
-        a new time afterwards using the /save command.
+        a new time afterwards using the /weeklytimesave command.
         
         Examples:
         /remove-time track:Rainbow Road

@@ -54,7 +54,7 @@ class BotEvents:
             # Set bot status
             activity = discord.Activity(
                 type=discord.ActivityType.watching,
-                name="Mario Kart World time trials | /save"
+                name="Mario Kart World time trials | /weeklytimesave"
             )
             await self.bot.change_presence(activity=activity)
             
@@ -89,7 +89,7 @@ class BotEvents:
                         "for Mario Kart World tracks.\n\n"
                         "**Quick Start:**\n"
                         "• `/set-challenge` - Create a new time trial\n"
-                        "• `/save` - Submit your time\n"
+                        "• `/weeklytimesave` - Submit your time\n"
                         "• `/leaderboard` - View rankings\n"
                         "• `/active` - See all active trials\n\n"
                         "**Features:**\n"

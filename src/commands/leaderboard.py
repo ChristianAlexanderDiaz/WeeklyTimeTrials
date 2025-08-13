@@ -250,7 +250,7 @@ class ActiveTrialsCommand(AutocompleteCommand):
                 inline=True
             )
         
-        embed.set_footer(text="Use /save to submit your time!")
+        embed.set_footer(text="Use /weeklytimesave to submit your time!")
         return embed
     
     async def _get_trial_participant_count(self, trial_id: int) -> int:

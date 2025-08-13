@@ -81,7 +81,7 @@ Used inheritance-based design with BaseCommand class providing:
 ### Autocomplete Strategy
 
 Each command requiring track selection implements smart autocomplete:
-- `/save`: Shows only tracks with active trials
+- `/weeklytimesave`: Shows only tracks with active trials
 - `/leaderboard`: Shows tracks with any trials (historical data)
 - `/remove-time`: Shows only tracks where user has submissions
 - `/set-challenge`: Prioritizes tracks without active trials
@@ -191,7 +191,7 @@ DEBUG=false
    - Enforces concurrent trial limits
    - Sets goal times and duration
 
-2. **Active Phase**: Users submit times with `/save`
+2. **Active Phase**: Users submit times with `/weeklytimesave`
    - Only accepts improvements (faster times)
    - Real-time medal calculation
    - Prevents duplicate submissions

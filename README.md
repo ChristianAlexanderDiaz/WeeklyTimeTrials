@@ -17,8 +17,8 @@ A Discord bot for managing weekly time trial challenges for all 30 Mario Kart Wo
 
 ### User Commands
 
-- `/save <track> <time>` - Submit your time for an active trial
-  - Example: `/save track:Rainbow Road time:2:23.640`
+- `/weeklytimesave <track> <time>` - Submit your time for an active trial
+  - Example: `/weeklytimesave track:Rainbow Road time:2:23.640`
   - Only shows tracks with active trials in autocomplete
   - Rejects slower times than your current best
 
@@ -222,8 +222,8 @@ Manual testing checklist:
 ### Submitting Times
 
 ```
-/save track:Rainbow Road time:2:23.640
-/save track:Mario Circuit time:1:45.123
+/weeklytimesave track:Rainbow Road time:2:23.640
+/weeklytimesave track:Mario Circuit time:1:45.123
 ```
 
 ### Viewing Results

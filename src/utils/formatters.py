@@ -72,8 +72,7 @@ class EmbedFormatter:
             )
             description_parts.append(leaderboard_text)
         
-        # Add divider
-        description_parts.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        # Add spacing between leaderboard and goal times
         
         # Add goal times (without header)
         goal_times_text = EmbedFormatter._format_goal_times(
@@ -90,7 +89,7 @@ class EmbedFormatter:
             timestamp=datetime.now(timezone.utc)
         )
         
-        embed.set_footer(text="Use /save to submit your time!")
+        embed.set_footer(text="Use /weeklytimesave to submit your time!")
         return embed
     
     @staticmethod
@@ -268,7 +267,7 @@ class EmbedFormatter:
         
         embed.add_field(
             name="🎮 How to Participate",
-            value="Use `/save` command to submit your time!",
+            value="Use `/weeklytimesave` command to submit your time!",
             inline=False
         )
         

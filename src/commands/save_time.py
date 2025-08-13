@@ -245,7 +245,7 @@ def setup_save_command(tree: app_commands.CommandTree) -> None:
     save_cmd = SaveTimeCommand()
     
     @tree.command(
-        name="save",
+        name="weeklytimesave",
         description="Submit your time for an active weekly trial"
     )
     @app_commands.describe(
@@ -257,8 +257,8 @@ def setup_save_command(tree: app_commands.CommandTree) -> None:
         Save/submit a time for an active weekly trial.
         
         Examples:
-        /save track:Rainbow Road time:2:23.640
-        /save track:Mario Circuit time:1:45.123
+        /weeklytimesave track:Rainbow Road time:2:23.640
+        /weeklytimesave track:Mario Circuit time:1:45.123
         """
         await save_cmd.handle_command(interaction, track=track, time=time)
     
