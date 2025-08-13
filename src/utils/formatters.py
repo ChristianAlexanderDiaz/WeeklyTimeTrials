@@ -120,22 +120,19 @@ class EmbedFormatter:
             # Format time
             time_str = TimeParser.format_time(time_ms)
             
-            # Get medal emoji
+            # Get medal emoji (to show after time if achieved)
             medal_emoji = ""
             if medal == 'gold':
-                medal_emoji = "🥇 "
+                medal_emoji = " 🥇"
             elif medal == 'silver':
-                medal_emoji = "🥈 "
+                medal_emoji = " 🥈"
             elif medal == 'bronze':
-                medal_emoji = "🥉 "
+                medal_emoji = " 🥉"
             
-            # Format rank (use medal emoji for top 3, number for others)
-            if rank <= 3 and medal != 'none':
-                rank_display = medal_emoji
-            else:
-                rank_display = f"{rank}) "
+            # Always use consistent numbering for rank
+            rank_display = f"{rank}. "
             
-            lines.append(f"{rank_display}{display_name} - {time_str}")
+            lines.append(f"{rank_display}{display_name} - {time_str}{medal_emoji}")
         
         return "\n".join(lines)
     
