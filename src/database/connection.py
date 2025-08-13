@@ -159,6 +159,8 @@ class DatabaseManager:
                     
                     if fetch:
                         rows = cursor.fetchall()
+                        # Always commit after successful execution
+                        conn.commit()
                         # Convert RealDictRow to regular dict
                         return [dict(row) for row in rows]
                     else:
