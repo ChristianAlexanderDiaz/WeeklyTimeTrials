@@ -6,12 +6,15 @@ before its scheduled expiration time.
 """
 
 from typing import List, Optional, Dict, Any
+import logging
 import discord
 from discord import app_commands, Interaction
 
 from .base import AutocompleteCommand, CommandError
 from ..utils.validators import ValidationError
 from ..utils.formatters import EmbedFormatter
+
+logger = logging.getLogger(__name__)
 
 
 class EndChallengeCommand(AutocompleteCommand):
@@ -56,6 +59,16 @@ class EndChallengeCommand(AutocompleteCommand):
         
         # End the trial
         await self._end_trial_by_number(guild_id, trial_number)
+        
+        # Update live leaderboard to show final results
+        from ..utils.leaderboard_manager import finalize_live_leaderboard
+        
+        try:
+            await finalize_live_leaderboard(trial_id, interaction.guild)
+            logger.info(f"Finalized live leaderboard for trial #{trial_number}")
+        except Exception as e:
+            # Don't fail the command if leaderboard update fails
+            logger.error(f"Error finalizing live leaderboard: {e}")
         
         # Create success response with final stats
         embed = await self._create_trial_ended_embed(

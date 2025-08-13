@@ -17,6 +17,8 @@ CREATE TABLE weekly_trials (
     end_date TIMESTAMP,                      -- When challenge ends (NULL = active)
     status VARCHAR(20) DEFAULT 'active',     -- 'active', 'expired', 'ended'
     guild_id BIGINT NOT NULL,                -- Discord server ID
+    leaderboard_channel_id BIGINT,           -- Discord channel ID where leaderboard message is posted
+    leaderboard_message_id BIGINT,           -- Discord message ID of the live leaderboard
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- Constraints

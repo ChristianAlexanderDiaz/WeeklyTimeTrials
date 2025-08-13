@@ -6,6 +6,7 @@ It includes validation, duplicate checking, and improvement tracking.
 """
 
 from typing import List, Optional, Dict, Any
+import logging
 import discord
 from discord import app_commands, Interaction
 
@@ -14,6 +15,8 @@ from ..utils.validators import InputValidator, ValidationError
 from ..utils.time_parser import TimeParser, TimeFormatError
 from ..utils.track_data import TrackManager, get_track_autocomplete_choices
 from ..utils.formatters import EmbedFormatter
+
+logger = logging.getLogger(__name__)
 from ..utils.user_utils import get_display_name
 
 
@@ -93,6 +96,15 @@ class SaveTimeCommand(AutocompleteCommand):
         
         # Determine medal achievement
         medal_achieved = self._get_medal_for_time(time_ms, trial_data)
+        
+        # Update live leaderboard
+        from ..utils.leaderboard_manager import update_live_leaderboard
+        
+        try:
+            await update_live_leaderboard(trial_id, interaction.guild)
+        except Exception as e:
+            # Don't fail the command if leaderboard update fails
+            logger.error(f"Error updating live leaderboard: {e}")
         
         # Create success response
         embed = EmbedFormatter.create_time_submission_embed(

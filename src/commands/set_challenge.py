@@ -7,6 +7,7 @@ with specified goal times and duration.
 
 from datetime import datetime, timedelta, timezone
 from typing import List
+import logging
 import discord
 from discord import app_commands, Interaction
 
@@ -15,6 +16,8 @@ from ..utils.validators import InputValidator, ValidationError
 from ..utils.track_data import TrackManager, get_track_autocomplete_choices
 from ..utils.formatters import EmbedFormatter
 from ..config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 class SetChallengeCommand(AutocompleteCommand):
@@ -100,6 +103,19 @@ class SetChallengeCommand(AutocompleteCommand):
             bronze_ms=bronze_ms,
             end_date=end_date
         )
+        
+        # Create live leaderboard message
+        from ..utils.leaderboard_manager import create_live_leaderboard
+        
+        try:
+            leaderboard_message = await create_live_leaderboard(trial_data, interaction.channel)
+            if leaderboard_message:
+                logger.info(f"Created live leaderboard for trial #{trial_number}")
+            else:
+                logger.warning(f"Failed to create live leaderboard for trial #{trial_number}")
+        except Exception as e:
+            # Don't fail the command if leaderboard creation fails
+            logger.error(f"Error creating live leaderboard: {e}")
         
         # Create success response
         embed = EmbedFormatter.create_trial_created_embed(trial_data)
