@@ -217,103 +217,36 @@ class ActiveTrialsCommand(AutocompleteCommand):
         Returns:
             Formatted embed with active trials overview
         """
+        # Build description with trial list
+        description_parts = [f"Currently **{len(trials)}** active trial(s)"]
+        
+        if trials:
+            description_parts.append("")  # Empty line for spacing
+            
+            for trial in trials:
+                trial_number = trial['trial_number']
+                track_name = trial['track_name']
+                end_date = trial.get('end_date')
+                
+                # Format expiration info
+                if end_date:
+                    # Use Discord timestamp for automatic timezone handling
+                    expire_text = f"Expires: <t:{int(end_date.timestamp())}:R>"
+                else:
+                    expire_text = "No expiration set"
+                
+                trial_line = f"**Trial #{trial_number} - {track_name}**\n{expire_text}"
+                description_parts.append(trial_line)
+        
         embed = discord.Embed(
             title="🏁 Active Time Trials",
-            description=f"Currently **{len(trials)}** active trial(s)",
+            description="\n\n".join(description_parts),
             color=EmbedFormatter.COLOR_INFO
         )
-        
-        for trial in trials:
-            trial_id = trial['id']
-            trial_number = trial['trial_number']
-            track_name = trial['track_name']
-            
-            # Get participant count
-            participant_count = await self._get_trial_participant_count(trial_id)
-            
-            # Get fastest time if any submissions
-            fastest_time_str = "No times yet"
-            if participant_count > 0:
-                fastest_time_data = await self._get_fastest_time(trial_id, guild)
-                if fastest_time_data:
-                    fastest_time_str = f"{fastest_time_data['time_str']} by {fastest_time_data['username']}"
-            
-            field_value = (
-                f"**Participants:** {participant_count}\n"
-                f"**Fastest Time:** {fastest_time_str}\n"
-                f"*Use `/leaderboard {track_name}` for full standings*"
-            )
-            
-            embed.add_field(
-                name=f"Trial #{trial_number} - {track_name}",
-                value=field_value,
-                inline=True
-            )
         
         embed.set_footer(text="Use /weeklytimesave to submit your time!")
         return embed
     
-    async def _get_trial_participant_count(self, trial_id: int) -> int:
-        """
-        Get the number of participants in a trial.
-        
-        Args:
-            trial_id: Trial ID
-            
-        Returns:
-            Number of participants
-        """
-        query = """
-            SELECT COUNT(*) as participant_count
-            FROM player_times 
-            WHERE trial_id = %s
-        """
-        
-        results = self._execute_query(query, (trial_id,))
-        return results[0]['participant_count']
-    
-    async def _get_fastest_time(self, trial_id: int, guild) -> Dict[str, Any]:
-        """
-        Get the fastest time and user for a trial.
-        
-        Args:
-            trial_id: Trial ID
-            guild: Discord guild object for username resolution
-            
-        Returns:
-            Dictionary with fastest time info
-        """
-        query = """
-            SELECT 
-                user_id,
-                time_ms
-            FROM player_times 
-            WHERE trial_id = %s
-            ORDER BY time_ms ASC
-            LIMIT 1
-        """
-        
-        results = self._execute_query(query, (trial_id,))
-        if not results:
-            return None
-        
-        from ..utils.time_parser import TimeParser
-        from ..utils.user_utils import get_display_name
-        
-        result = results[0]
-        time_str = TimeParser.format_time(result['time_ms'])
-        
-        # Resolve the actual username from Discord
-        try:
-            username = await get_display_name(result['user_id'], guild)
-        except Exception:
-            username = f"User {result['user_id']}"
-        
-        return {
-            'time_str': time_str,
-            'username': username,
-            'user_id': result['user_id']
-        }
     
     async def autocomplete_callback(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
         """This command doesn't use autocomplete."""
