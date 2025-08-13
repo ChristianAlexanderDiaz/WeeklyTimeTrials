@@ -39,9 +39,19 @@ class LeaderboardManager:
             Discord message object if successful, None if failed
         """
         try:
-            # Create initial leaderboard embed (will be empty at first)
+            # Get current leaderboard data for the trial
+            trial_id = trial_data['id']
+            leaderboard_data = await LeaderboardManager._get_leaderboard_data(trial_id, trial_data)
+            
+            # Get user display names for all participants
+            user_ids = [row['user_id'] for row in leaderboard_data]
+            user_display_names = {}
+            if user_ids:
+                user_display_names = await bulk_get_display_names(user_ids, channel.guild)
+            
+            # Create leaderboard embed with actual current data
             embed = await LeaderboardManager._create_leaderboard_embed(
-                trial_data, [], {}
+                trial_data, leaderboard_data, user_display_names
             )
             
             # Post the message
