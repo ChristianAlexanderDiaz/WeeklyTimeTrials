@@ -21,9 +21,7 @@ CREATE TABLE weekly_trials (
     
     -- Constraints
     CONSTRAINT chk_status CHECK (status IN ('active', 'expired', 'ended')),
-    CONSTRAINT chk_times CHECK (bronze_time_ms >= silver_time_ms AND silver_time_ms >= gold_time_ms),
-    CONSTRAINT unique_active_trial_per_guild_track UNIQUE (guild_id, track_name, status) 
-        DEFERRABLE INITIALLY DEFERRED  -- Allow temporary duplicates during updates
+    CONSTRAINT chk_times CHECK (bronze_time_ms >= silver_time_ms AND silver_time_ms >= gold_time_ms)
 );
 
 -- Player times table  
@@ -53,6 +51,10 @@ CREATE TABLE bot_managers (
     -- Constraints
     CONSTRAINT unique_manager_per_guild UNIQUE (user_id, guild_id)
 );
+
+-- Unique constraint for active trials only
+-- This allows unlimited ended/expired trials per track but only 1 active trial per track
+CREATE UNIQUE INDEX unique_active_trial_per_guild_track ON weekly_trials(guild_id, track_name) WHERE status = 'active';
 
 -- Performance indexes
 -- These indexes speed up common query patterns
