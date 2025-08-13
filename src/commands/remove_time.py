@@ -77,6 +77,15 @@ class RemoveTimeCommand(AutocompleteCommand):
         # Remove the time from database
         await self._remove_user_time(trial_id, user_id)
         
+        # Update live leaderboard to reflect the removal
+        from ..utils.leaderboard_manager import update_live_leaderboard
+        
+        try:
+            await update_live_leaderboard(trial_id, interaction.guild)
+        except Exception as e:
+            # Don't fail the command if leaderboard update fails
+            logger.error(f"Error updating live leaderboard after time removal: {e}")
+        
         # Create success response
         embed = EmbedFormatter.create_success_embed(
             "Time Removed",
