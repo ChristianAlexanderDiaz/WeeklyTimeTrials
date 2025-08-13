@@ -70,16 +70,82 @@ class SetLeaderboardChannelCommand(BaseCommand):
                 "Failed to save leaderboard channel setting. Please try again."
             )
         
+        # Get all active trials and post their leaderboards in the new channel
+        active_trials = await self._get_active_trials(guild_id)
+        posted_count = 0
+        
+        if active_trials:
+            from ..utils.leaderboard_manager import create_live_leaderboard
+            
+            for trial_data in active_trials:
+                try:
+                    leaderboard_message = await create_live_leaderboard(trial_data, channel)
+                    if leaderboard_message:
+                        posted_count += 1
+                        logger.info(f"Posted leaderboard for trial #{trial_data['trial_number']} in {channel.name}")
+                    else:
+                        logger.warning(f"Failed to post leaderboard for trial #{trial_data['trial_number']}")
+                except Exception as e:
+                    logger.error(f"Error posting leaderboard for trial #{trial_data['trial_number']}: {e}")
+        
         # Create success response
+        if posted_count > 0:
+            details_text = (
+                f"• **{posted_count} active leaderboard(s)** posted in {channel.mention}\n"
+                f"• Live leaderboards will update automatically when users submit times\n"
+                f"• Future trials will also post leaderboards in {channel.mention}\n"
+                f"• You can change this setting anytime with `/setleaderboardchannel`"
+            )
+        else:
+            details_text = (
+                f"• Use `/set-challenge` to create trials - leaderboards will automatically appear in {channel.mention}\n"
+                f"• Live leaderboards will update when users submit times\n"
+                f"• You can change this setting anytime with `/setleaderboardchannel`"
+            )
+        
         embed = EmbedFormatter.create_success_embed(
             "Leaderboard Channel Set",
-            f"All future trial leaderboards will be posted in {channel.mention}.",
-            f"• Use `/set-challenge` to create trials - leaderboards will automatically appear in {channel.mention}\n"
-            f"• Live leaderboards will update when users submit times\n"
-            f"• You can change this setting anytime with `/setleaderboardchannel`"
+            f"All trial leaderboards will be posted in {channel.mention}.",
+            details_text
         )
         
         await self._send_response(interaction, embed=embed, ephemeral=False)
+    
+    async def _get_active_trials(self, guild_id: int) -> list:
+        """
+        Get all active trials for a guild.
+        
+        Args:
+            guild_id: Discord guild ID
+            
+        Returns:
+            List of active trial data
+        """
+        query = """
+            SELECT 
+                id,
+                trial_number,
+                track_name,
+                gold_time_ms,
+                silver_time_ms,
+                bronze_time_ms,
+                start_date,
+                end_date,
+                status,
+                guild_id,
+                leaderboard_channel_id,
+                leaderboard_message_id
+            FROM weekly_trials 
+            WHERE guild_id = %s 
+                AND status = 'active'
+            ORDER BY trial_number ASC
+        """
+        
+        try:
+            return self._execute_query(query, (guild_id,))
+        except Exception as e:
+            logger.error(f"Failed to get active trials: {e}")
+            return []
 
 
 # Command setup function for the main bot file
