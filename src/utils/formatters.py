@@ -178,45 +178,66 @@ class EmbedFormatter:
         track_name = trial_data['track_name']
         time_str = TimeParser.format_time(time_ms)
         
-        title = "⏱️ Time Submitted!"
         if is_improvement:
-            title = "🏃‍♂️ Time Improved!"
-        
-        embed = discord.Embed(
-            title=title,
-            color=EmbedFormatter.COLOR_SUCCESS,
-            timestamp=datetime.now(timezone.utc)
-        )
-        
-        # Main submission info
-        embed.add_field(
-            name="🏁 Challenge",
-            value=f"Weekly Time Trial #{trial_number}\n**{track_name}**",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="⏰ Your Time",
-            value=f"**{time_str}**",
-            inline=True
-        )
-        
-        # Medal achievement
-        if medal_achieved:
-            medal_emoji = {"gold": "🥇", "silver": "🥈", "bronze": "🥉"}.get(medal_achieved, "")
+            # Ultra minimal format for improvements
+            title = f"🏁 {track_name} Improvement"
+            
+            # Build description with new time, medal, and improvement
+            description_parts = []
+            
+            # Medal emoji if achieved
+            medal_emoji = ""
+            if medal_achieved:
+                medal_emoji = {"gold": " 🥇", "silver": " 🥈", "bronze": " 🥉"}.get(medal_achieved, "")
+            
+            # Improvement amount (extract from improvement_text)
+            improvement_amount = ""
+            if improvement_text:
+                # Extract the time improvement (e.g., "Improved by 0:00.401!")
+                import re
+                match = re.search(r'(\d+:\d+\.\d+)', improvement_text)
+                if match:
+                    improvement_amount = f" (-{match.group(1)})"
+            
+            description = f"New time: {time_str}{medal_emoji}{improvement_amount}"
+            
+            embed = discord.Embed(
+                title=title,
+                description=description,
+                color=EmbedFormatter.COLOR_SUCCESS,
+                timestamp=datetime.now(timezone.utc)
+            )
+        else:
+            # Regular submission format (keep existing for non-improvements)
+            title = "⏱️ Time Submitted!"
+            
+            embed = discord.Embed(
+                title=title,
+                color=EmbedFormatter.COLOR_SUCCESS,
+                timestamp=datetime.now(timezone.utc)
+            )
+            
+            # Main submission info
             embed.add_field(
-                name="🏆 Medal Earned",
-                value=f"{medal_emoji} **{medal_achieved.upper()}**",
+                name="🏁 Challenge",
+                value=f"Weekly Time Trial #{trial_number}\n**{track_name}**",
                 inline=True
             )
-        
-        # Improvement info
-        if is_improvement and improvement_text:
+            
             embed.add_field(
-                name="📈 Improvement",
-                value=improvement_text,
-                inline=False
+                name="⏰ Your Time",
+                value=f"**{time_str}**",
+                inline=True
             )
+            
+            # Medal achievement
+            if medal_achieved:
+                medal_emoji = {"gold": "🥇", "silver": "🥈", "bronze": "🥉"}.get(medal_achieved, "")
+                embed.add_field(
+                    name="🏆 Medal Earned",
+                    value=f"{medal_emoji} **{medal_achieved.upper()}**",
+                    inline=True
+                )
         
         embed.set_footer(text="Use /leaderboard to see your ranking!")
         return embed
