@@ -217,12 +217,17 @@ class ActiveTrialsCommand(AutocompleteCommand):
         Returns:
             Formatted embed with active trials overview
         """
-        # Build description with trial list
-        description_parts = [f"Currently **{len(trials)}** active trial(s)"]
+        # Create title with count
+        trial_count = len(trials)
+        if trial_count == 1:
+            title = "🏁 1 Active Time Trial"
+        else:
+            title = f"🏁 {trial_count} Active Time Trials"
+        
+        # Build description with just trial list (no redundant count text)
+        description_parts = []
         
         if trials:
-            description_parts.append("")  # Empty line for spacing
-            
             for trial in trials:
                 trial_number = trial['trial_number']
                 track_name = trial['track_name']
@@ -239,8 +244,8 @@ class ActiveTrialsCommand(AutocompleteCommand):
                 description_parts.append(trial_line)
         
         embed = discord.Embed(
-            title="🏁 Active Time Trials",
-            description="\n\n".join(description_parts),
+            title=title,
+            description="\n\n".join(description_parts) if description_parts else "No active trials right now.",
             color=EmbedFormatter.COLOR_INFO
         )
         
