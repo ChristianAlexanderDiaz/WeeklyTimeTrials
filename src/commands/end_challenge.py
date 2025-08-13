@@ -10,8 +10,7 @@ import discord
 from discord import app_commands, Interaction
 
 from .base import AutocompleteCommand, CommandError
-from ..utils.validators import InputValidator, ValidationError
-from ..utils.track_data import TrackManager, get_track_autocomplete_choices
+from ..utils.validators import ValidationError
 from ..utils.formatters import EmbedFormatter
 
 
@@ -20,35 +19,33 @@ class EndChallengeCommand(AutocompleteCommand):
     Command to manually end an active weekly time trial challenge.
     
     This command handles:
-    - Track name validation with autocomplete
-    - Finding active trials
+    - Trial number validation
+    - Finding active trials by trial number
     - Updating trial status to 'ended'
     - Sending confirmation with final leaderboard info
     """
     
-    async def execute(self, interaction: Interaction, track: str) -> None:
+    async def execute(self, interaction: Interaction, trial_number: int) -> None:
         """
         Execute the end challenge command.
         
         Args:
             interaction: Discord interaction object
-            track: Track name (validated via autocomplete)
+            trial_number: Trial number to end (from weekly_trials.trial_number)
         """
         guild_id = self._validate_guild_interaction(interaction)
         user_id = self._validate_user_interaction(interaction)
         
-        # Validate track name
-        try:
-            track_name = InputValidator.validate_track_name(track, TrackManager.get_all_tracks())
-        except ValidationError as e:
-            raise ValidationError(e)
+        # Validate trial number
+        if trial_number <= 0:
+            raise ValidationError("Trial number must be a positive integer")
         
-        # Get active trial for this track
-        trial_data = await self._get_active_trial_by_track(guild_id, track_name)
+        # Get active trial by trial number
+        trial_data = await self._get_active_trial_by_number(guild_id, trial_number)
         if not trial_data:
             raise CommandError(
-                f"No active trial found for **{track_name}**. "
-                f"Only active trials can be ended manually."
+                f"No active trial found with number **{trial_number}**. "
+                f"Use `/active` to see current active trials."
             )
         
         trial_id = trial_data['id']
@@ -58,7 +55,7 @@ class EndChallengeCommand(AutocompleteCommand):
         final_stats = await self._get_trial_final_stats(trial_id)
         
         # End the trial
-        await self._end_trial(guild_id, track_name)
+        await self._end_trial_by_number(guild_id, trial_number)
         
         # Create success response with final stats
         embed = await self._create_trial_ended_embed(
@@ -67,13 +64,45 @@ class EndChallengeCommand(AutocompleteCommand):
         
         await self._send_response(interaction, embed=embed, ephemeral=False)
     
-    async def _end_trial(self, guild_id: int, track_name: str) -> None:
+    async def _get_active_trial_by_number(self, guild_id: int, trial_number: int) -> Optional[Dict[str, Any]]:
+        """
+        Get active trial by trial number.
+        
+        Args:
+            guild_id: Discord guild ID
+            trial_number: Trial number to find
+            
+        Returns:
+            Trial data if found and active, None otherwise
+        """
+        query = """
+            SELECT 
+                id,
+                trial_number,
+                track_name,
+                gold_time_ms,
+                silver_time_ms,
+                bronze_time_ms,
+                start_date,
+                end_date,
+                status
+            FROM weekly_trials 
+            WHERE guild_id = %s 
+                AND trial_number = %s 
+                AND status = 'active'
+            LIMIT 1
+        """
+        
+        results = self._execute_query(query, (guild_id, trial_number))
+        return results[0] if results else None
+    
+    async def _end_trial_by_number(self, guild_id: int, trial_number: int) -> None:
         """
         End an active trial by setting status to 'ended'.
         
         Args:
             guild_id: Discord guild ID
-            track_name: Track name
+            trial_number: Trial number to end
             
         Raises:
             CommandError: If ending fails
@@ -83,12 +112,12 @@ class EndChallengeCommand(AutocompleteCommand):
             SET status = 'ended', 
                 end_date = CURRENT_TIMESTAMP 
             WHERE guild_id = %s 
-                AND track_name = %s 
+                AND trial_number = %s 
                 AND status = 'active'
             RETURNING id, trial_number, track_name
         """
         
-        results = self._execute_query(query, (guild_id, track_name), fetch=True)
+        results = self._execute_query(query, (guild_id, trial_number), fetch=True)
         if not results:
             raise CommandError("Failed to end trial. It may have already been ended.")
     
@@ -207,73 +236,8 @@ class EndChallengeCommand(AutocompleteCommand):
         return embed
     
     async def autocomplete_callback(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
-        """
-        Provide autocomplete choices for track names.
-        
-        Only shows tracks that have active trials that can be ended.
-        
-        Args:
-            interaction: Discord interaction object
-            current: Current user input
-            
-        Returns:
-            List of autocomplete choices for tracks with active trials
-        """
-        try:
-            guild_id = self._validate_guild_interaction(interaction)
-            
-            # Get tracks with active trials
-            active_tracks = await self._get_active_track_names(guild_id)
-            
-            # Filter tracks based on user input
-            if current:
-                current_lower = current.lower()
-                filtered_tracks = [
-                    track for track in active_tracks
-                    if current_lower in track.lower()
-                ]
-            else:
-                filtered_tracks = active_tracks
-            
-            # Limit to 25 choices (Discord limit)
-            filtered_tracks = filtered_tracks[:25]
-            
-            return [
-                app_commands.Choice(name=track, value=track)
-                for track in filtered_tracks
-            ]
-            
-        except Exception as e:
-            self.logger.error(f"Autocomplete error: {e}")
-            # Fallback to all tracks if database query fails
-            return [
-                app_commands.Choice(name=choice['name'], value=choice['value'])
-                for choice in get_track_autocomplete_choices(current)[:25]
-            ]
-    
-    async def _get_active_track_names(self, guild_id: int) -> List[str]:
-        """
-        Get list of track names that have active trials.
-        
-        Args:
-            guild_id: Discord guild ID
-            
-        Returns:
-            List of track names with active trials
-        """
-        query = """
-            SELECT DISTINCT track_name
-            FROM weekly_trials 
-            WHERE guild_id = %s 
-                AND status = 'active'
-            ORDER BY track_name
-        """
-        
-        try:
-            results = self._execute_query(query, (guild_id,))
-            return [row['track_name'] for row in results]
-        except Exception:
-            return []
+        """No autocomplete needed for trial number input."""
+        return []
 
 
 # Command setup function for the main bot file
@@ -288,30 +252,26 @@ def setup_end_challenge_command(tree: app_commands.CommandTree) -> None:
     
     @tree.command(
         name="end-challenge",
-        description="Manually end an active weekly time trial challenge"
+        description="Manually end an active weekly time trial challenge by trial number"
     )
     @app_commands.describe(
-        track="Select the track with an active trial to end"
+        trial_number="Trial number to end (use /active to see current trial numbers)"
     )
-    async def end_challenge(interaction: Interaction, track: str):
+    async def end_challenge(interaction: Interaction, trial_number: int):
         """
-        Manually end an active weekly time trial challenge.
+        Manually end an active weekly time trial challenge by trial number.
         
         This immediately stops accepting new time submissions for the trial
         and sets it to 'ended' status. The leaderboard remains viewable.
         
         Examples:
-        /end-challenge track:Rainbow Road
-        /end-challenge track:Mario Circuit
+        /end-challenge trial_number:1
+        /end-challenge trial_number:2
         
         Note:
+        - Use /active to see current active trial numbers
         - Only active trials can be ended manually
         - Once ended, the trial becomes read-only
         - A new trial can be created for the same track afterwards
         """
-        await end_cmd.handle_command(interaction, track=track)
-    
-    @end_challenge.autocomplete('track')
-    async def track_autocomplete(interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
-        """Autocomplete for track parameter - shows only tracks with active trials."""
-        return await end_cmd.autocomplete_callback(interaction, current)
+        await end_cmd.handle_command(interaction, trial_number=trial_number)
