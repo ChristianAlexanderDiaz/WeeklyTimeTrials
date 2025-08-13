@@ -106,11 +106,18 @@ class SetChallengeCommand(AutocompleteCommand):
         
         # Create live leaderboard message
         from ..utils.leaderboard_manager import create_live_leaderboard
+        from ..utils.guild_settings import resolve_leaderboard_channel
         
         try:
-            leaderboard_message = await create_live_leaderboard(trial_data, interaction.channel)
+            # Resolve which channel to use for the leaderboard
+            leaderboard_channel = await resolve_leaderboard_channel(interaction.guild, interaction.channel)
+            
+            leaderboard_message = await create_live_leaderboard(trial_data, leaderboard_channel)
             if leaderboard_message:
-                logger.info(f"Created live leaderboard for trial #{trial_number}")
+                if leaderboard_channel != interaction.channel:
+                    logger.info(f"Created live leaderboard for trial #{trial_number} in {leaderboard_channel.name}")
+                else:
+                    logger.info(f"Created live leaderboard for trial #{trial_number}")
             else:
                 logger.warning(f"Failed to create live leaderboard for trial #{trial_number}")
         except Exception as e:

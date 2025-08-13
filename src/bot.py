@@ -22,6 +22,7 @@ from .commands.leaderboard import setup_leaderboard_command, setup_active_trials
 from .commands.remove_time import setup_remove_time_command
 from .commands.set_challenge import setup_set_challenge_command
 from .commands.end_challenge import setup_end_challenge_command
+from .commands.set_leaderboard_channel import setup_set_leaderboard_channel_command
 
 # Configure logging
 logging.basicConfig(
@@ -106,6 +107,7 @@ class MKWTimeTrialBot(commands.Bot):
         # Admin commands (no restrictions as specified)
         setup_set_challenge_command(self.tree)
         setup_end_challenge_command(self.tree)
+        setup_set_leaderboard_channel_command(self.tree)
         
         logger.info("All commands registered successfully")
     

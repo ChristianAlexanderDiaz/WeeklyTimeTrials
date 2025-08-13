@@ -54,6 +54,15 @@ CREATE TABLE bot_managers (
     CONSTRAINT unique_manager_per_guild UNIQUE (user_id, guild_id)
 );
 
+-- Guild settings table
+-- Stores server-specific bot configuration
+CREATE TABLE guild_settings (
+    guild_id BIGINT PRIMARY KEY,             -- Discord server ID
+    leaderboard_channel_id BIGINT,           -- Default channel for live leaderboard messages
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Unique constraint for active trials only
 -- This allows unlimited ended/expired trials per track but only 1 active trial per track
 CREATE UNIQUE INDEX unique_active_trial_per_guild_track ON weekly_trials(guild_id, track_name) WHERE status = 'active';
@@ -83,9 +92,11 @@ CREATE INDEX idx_weekly_trials_guild_status_track ON weekly_trials(guild_id, sta
 COMMENT ON TABLE weekly_trials IS 'Stores weekly Mario Kart World time trial challenges';
 COMMENT ON TABLE player_times IS 'Stores time submissions from Discord users for each trial';
 COMMENT ON TABLE bot_managers IS 'Tracks users with special bot management permissions';
+COMMENT ON TABLE guild_settings IS 'Stores server-specific bot configuration and preferences';
 
 -- Comments on important columns
 COMMENT ON COLUMN weekly_trials.trial_number IS 'Sequential number for "Weekly Time Trial #N" naming';
 COMMENT ON COLUMN weekly_trials.status IS 'active: accepting submissions, expired: read-only, ended: manually closed';
 COMMENT ON COLUMN player_times.user_id IS 'Discord user ID - permanent identifier, names resolved dynamically';
 COMMENT ON COLUMN player_times.time_ms IS 'Time in milliseconds for precise comparison and sorting';
+COMMENT ON COLUMN guild_settings.leaderboard_channel_id IS 'Default Discord channel ID for posting live leaderboard messages';
