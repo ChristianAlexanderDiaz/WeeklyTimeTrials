@@ -49,69 +49,45 @@ class EmbedFormatter:
         track_name = trial_data['track_name']
         status = trial_data.get('status', 'active')
         
-        # Create embed title
-        title = f"🏁 Weekly Time Trial #{trial_number} - {track_name}"
-        if status != 'active':
-            title += f" [{status.upper()}]"
+        # Create embed title with status emoji
+        status_emoji = ""
+        if status == 'active':
+            status_emoji = " 🟢"
+        elif status == 'expired':
+            status_emoji = " 🟡"
+        elif status == 'ended':
+            status_emoji = " 🔴"
         
-        embed = discord.Embed(
-            title=title,
-            color=EmbedFormatter.COLOR_LEADERBOARD,
-            timestamp=datetime.now(timezone.utc)
-        )
+        title = f"🏁 Weekly Time Trial #{trial_number} - {track_name}{status_emoji}"
         
-        # Add leaderboard content with separator
+        # Build the description with leaderboard and goal times
+        description_parts = []
+        
+        # Add leaderboard content
         if not leaderboard_data:
-            embed.description = "No times submitted yet. Be the first to set a time!"
+            description_parts.append("No times submitted yet. Be the first to set a time!")
         else:
             leaderboard_text = EmbedFormatter._format_leaderboard_positions(
                 leaderboard_data, user_display_names
             )
-            embed.description = leaderboard_text
+            description_parts.append(leaderboard_text)
         
-        # Add blank field for spacing
-        embed.add_field(name="\u200b", value="\u200b", inline=False)
+        # Add divider
+        description_parts.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         
-        # Add goal times section
+        # Add goal times (without header)
         goal_times_text = EmbedFormatter._format_goal_times(
             trial_data['gold_time_ms'],
             trial_data['silver_time_ms'], 
             trial_data['bronze_time_ms']
         )
-        embed.add_field(
-            name="🎯 Goal Times",
-            value=goal_times_text,
-            inline=False
-        )
+        description_parts.append(goal_times_text)
         
-        # Add blank field for spacing
-        embed.add_field(name="\u200b", value="\u200b", inline=False)
-        
-        # Add submission info and status in one row
-        status_text = ""
-        if status == 'active':
-            status_text = "🟢 **ACTIVE** - Accepting submissions"
-        elif status == 'expired':
-            status_text = "🟡 **EXPIRED** - Read only"
-        elif status == 'ended':
-            status_text = "🔴 **ENDED** - Manually closed"
-        
-        if leaderboard_data:
-            total_participants = len(leaderboard_data)
-            fastest_time = min(row['time_ms'] for row in leaderboard_data)
-            fastest_time_str = TimeParser.format_time(fastest_time)
-            
-            embed.add_field(
-                name="📊 Statistics",
-                value=f"**Participants:** {total_participants} • **Fastest:** {fastest_time_str}",
-                inline=False
-            )
-        
-        # Add status information
-        embed.add_field(
-            name="⏰ Status",
-            value=status_text,
-            inline=False
+        embed = discord.Embed(
+            title=title,
+            description="\n\n".join(description_parts),
+            color=EmbedFormatter.COLOR_LEADERBOARD,
+            timestamp=datetime.now(timezone.utc)
         )
         
         embed.set_footer(text="Use /save to submit your time!")
