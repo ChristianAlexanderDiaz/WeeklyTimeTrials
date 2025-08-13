@@ -1,0 +1,1 @@
+# Events package for MKW Time Trial Bot
