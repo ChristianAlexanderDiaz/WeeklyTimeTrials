@@ -7,7 +7,7 @@ to repeatedly run /leaderboard commands.
 """
 
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 import discord
 
 from .formatters import EmbedFormatter
@@ -80,23 +80,28 @@ class LeaderboardManager:
             return None
     
     @staticmethod
-    async def update_live_leaderboard(trial_id: int, guild: discord.Guild) -> bool:
+    async def update_live_leaderboard(trial_data_or_id, guild: Optional[discord.Guild] = None) -> bool:
         """
         Update an existing live leaderboard message with current rankings.
         
         Args:
-            trial_id: Database ID of the trial
-            guild: Discord guild object for user resolution
+            trial_data_or_id: Either trial data dict or trial ID int
+            guild: Discord guild object for user resolution (optional if trial_data provided)
             
         Returns:
             True if update successful, False otherwise
         """
         try:
-            # Get trial data with message info
-            trial_data = await LeaderboardManager._get_trial_with_message_info(trial_id)
-            if not trial_data:
-                logger.warning(f"Trial {trial_id} not found")
-                return False
+            # Handle both trial_data dict and trial_id int
+            if isinstance(trial_data_or_id, dict):
+                trial_data = trial_data_or_id
+                trial_id = trial_data['id']
+            else:
+                trial_id = trial_data_or_id
+                trial_data = await LeaderboardManager._get_trial_with_message_info(trial_id)
+                if not trial_data:
+                    logger.warning(f"Trial {trial_id} not found")
+                    return False
             
             # Check if we have a leaderboard message to update
             if not trial_data.get('leaderboard_message_id'):
@@ -118,6 +123,15 @@ class LeaderboardManager:
             embed = await LeaderboardManager._create_leaderboard_embed(
                 trial_data, leaderboard_data, user_display_names
             )
+            
+            # Get guild if not provided
+            if not guild:
+                from ..bot import bot_instance
+                if bot_instance:
+                    guild = bot_instance.get_guild(trial_data['guild_id'])
+                if not guild:
+                    logger.error(f"Guild {trial_data['guild_id']} not found")
+                    return False
             
             # Get the message and update it
             channel = guild.get_channel(trial_data['leaderboard_channel_id'])
@@ -213,9 +227,13 @@ class LeaderboardManager:
                 submitted_at,
                 updated_at,
                 CASE 
-                    WHEN time_ms <= %s THEN 'gold'
-                    WHEN time_ms <= %s THEN 'silver'  
-                    WHEN time_ms <= %s THEN 'bronze'
+                    WHEN %s IS NOT NULL AND %s IS NOT NULL AND %s IS NOT NULL THEN
+                        CASE 
+                            WHEN time_ms <= %s THEN 'gold'
+                            WHEN time_ms <= %s THEN 'silver'  
+                            WHEN time_ms <= %s THEN 'bronze'
+                            ELSE 'none'
+                        END
                     ELSE 'none'
                 END as medal
             FROM player_times 
@@ -224,7 +242,7 @@ class LeaderboardManager:
         """
         
         try:
-            return db_manager.execute_query(query, (gold_ms, silver_ms, bronze_ms, trial_id))
+            return db_manager.execute_query(query, (gold_ms, silver_ms, bronze_ms, gold_ms, silver_ms, bronze_ms, trial_id))
         except Exception as e:
             logger.error(f"Failed to get leaderboard data: {e}")
             return []
@@ -264,9 +282,9 @@ async def create_live_leaderboard(trial_data: Dict[str, Any],
     """Create a new live leaderboard message."""
     return await LeaderboardManager.create_live_leaderboard(trial_data, channel)
 
-async def update_live_leaderboard(trial_id: int, guild: discord.Guild) -> bool:
+async def update_live_leaderboard(trial_data_or_id: Union[Dict[str, Any], int], guild: Optional[discord.Guild] = None) -> bool:
     """Update an existing live leaderboard message."""
-    return await LeaderboardManager.update_live_leaderboard(trial_id, guild)
+    return await LeaderboardManager.update_live_leaderboard(trial_data_or_id, guild)
 
 async def finalize_live_leaderboard(trial_id: int, guild: discord.Guild) -> bool:
     """Finalize a live leaderboard when trial ends."""

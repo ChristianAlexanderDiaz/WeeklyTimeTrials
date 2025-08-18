@@ -23,6 +23,8 @@ from .commands.remove_time import setup_remove_time_command
 from .commands.set_challenge import setup_set_challenge_command
 from .commands.end_challenge import setup_end_challenge_command
 from .commands.set_leaderboard_channel import setup_set_leaderboard_channel_command
+from .commands.set_medal_times import setup_set_medal_times_command
+from .commands.remove_medal_times import setup_remove_medal_times_command
 
 # Configure logging
 logging.basicConfig(
@@ -35,6 +37,9 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Global bot instance for use by other modules
+bot_instance: Optional['MKWTimeTrialBot'] = None
 
 
 class MKWTimeTrialBot(commands.Bot):
@@ -108,6 +113,8 @@ class MKWTimeTrialBot(commands.Bot):
         setup_set_challenge_command(self.tree)
         setup_end_challenge_command(self.tree)
         setup_set_leaderboard_channel_command(self.tree)
+        setup_set_medal_times_command(self.tree)
+        setup_remove_medal_times_command(self.tree)
         
         logger.info("All commands registered successfully")
     
@@ -167,6 +174,10 @@ async def main() -> None:
         # Create bot instance
         logger.info("Creating bot instance...")
         bot = MKWTimeTrialBot()
+        
+        # Set global reference
+        global bot_instance
+        bot_instance = bot
         
         # Set up signal handlers for graceful shutdown
         setup_signal_handlers(bot)
