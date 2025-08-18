@@ -162,9 +162,9 @@ class BaseCommand(ABC):
             interaction: Discord interaction object
         """
         embed = EmbedFormatter.create_error_embed(
-            "Unexpected Error",
-            "An unexpected error occurred. Please try again later.",
-            "If this problem persists, please contact a server administrator."
+            "Cynical you braindead fuck 🤡",
+            "The bot had a little fucky wucky and had an absoulte howler!",
+            "If this keeps happening, make sure to ping Cynical 'wanker' because he probably broke something again. 💀"
         )
         await self._send_response(interaction, embed=embed, ephemeral=True)
     

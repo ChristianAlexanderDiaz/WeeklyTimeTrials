@@ -166,6 +166,10 @@ class SaveTimeCommand(AutocompleteCommand):
         silver_ms = trial_data['silver_time_ms']
         bronze_ms = trial_data['bronze_time_ms']
         
+        # If no medal times are set, no medals can be earned
+        if gold_ms is None or silver_ms is None or bronze_ms is None:
+            return None
+        
         if time_ms <= gold_ms:
             return 'gold'
         elif time_ms <= silver_ms:
