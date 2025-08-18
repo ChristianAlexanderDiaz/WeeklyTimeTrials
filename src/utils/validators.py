@@ -154,21 +154,36 @@ class InputValidator:
         return interaction.user.id
     
     @staticmethod
-    def validate_goal_times(gold: str, silver: str, bronze: str) -> tuple[int, int, int]:
+    def validate_goal_times(gold: Optional[str], silver: Optional[str], bronze: Optional[str]) -> tuple[Optional[int], Optional[int], Optional[int]]:
         """
         Validate and parse goal times for a new challenge.
         
         Args:
-            gold: Gold medal time string
-            silver: Silver medal time string
-            bronze: Bronze medal time string
+            gold: Gold medal time string (optional)
+            silver: Silver medal time string (optional)
+            bronze: Bronze medal time string (optional)
             
         Returns:
-            tuple: (gold_ms, silver_ms, bronze_ms) in milliseconds
+            tuple: (gold_ms, silver_ms, bronze_ms) in milliseconds or None values
             
         Raises:
-            ValidationError: If any goal time is invalid
+            ValidationError: If any goal time is invalid or inconsistent
         """
+        # Count how many medal times are provided
+        provided_times = [t for t in [gold, silver, bronze] if t is not None and t.strip()]
+        
+        # If no medal times provided, return all None
+        if len(provided_times) == 0:
+            return None, None, None
+        
+        # If some but not all medal times provided, require all or none
+        if len(provided_times) != 3:
+            raise ValidationError(
+                "Medal times must be either all provided or all omitted. "
+                f"You provided {len(provided_times)} out of 3 medal times."
+            )
+        
+        # All three times provided - validate them
         try:
             return TimeParser.parse_goal_times(gold, silver, bronze)
         except TimeFormatError as e:
@@ -224,8 +239,7 @@ class DatabaseValidator:
         Raises:
             ValidationError: If trial data is invalid
         """
-        required_fields = ['trial_number', 'track_name', 'gold_time_ms', 
-                          'silver_time_ms', 'bronze_time_ms', 'guild_id']
+        required_fields = ['trial_number', 'track_name', 'guild_id']
         
         for field in required_fields:
             if field not in trial_data:
@@ -239,14 +253,23 @@ class DatabaseValidator:
         if not isinstance(trial_data['track_name'], str) or not trial_data['track_name'].strip():
             raise ValidationError("Track name must be a non-empty string")
         
-        # Validate goal times
-        for time_field in ['gold_time_ms', 'silver_time_ms', 'bronze_time_ms']:
-            if not isinstance(trial_data[time_field], int) or trial_data[time_field] < 0:
-                raise ValidationError(f"{time_field} must be a non-negative integer")
+        # Validate goal times if provided
+        medal_times = [trial_data.get('gold_time_ms'), trial_data.get('silver_time_ms'), trial_data.get('bronze_time_ms')]
+        non_null_times = [t for t in medal_times if t is not None]
         
-        # Validate time ordering
-        if not (trial_data['gold_time_ms'] <= trial_data['silver_time_ms'] <= trial_data['bronze_time_ms']):
-            raise ValidationError("Goal times must be in order: gold ≤ silver ≤ bronze")
+        # Either all medal times are None or all are provided
+        if len(non_null_times) > 0 and len(non_null_times) < 3:
+            raise ValidationError("Medal times must be either all provided or all omitted")
+        
+        # If medal times are provided, validate them
+        if len(non_null_times) == 3:
+            for time_field in ['gold_time_ms', 'silver_time_ms', 'bronze_time_ms']:
+                if not isinstance(trial_data[time_field], int) or trial_data[time_field] < 0:
+                    raise ValidationError(f"{time_field} must be a non-negative integer")
+            
+            # Validate time ordering
+            if not (trial_data['gold_time_ms'] <= trial_data['silver_time_ms'] <= trial_data['bronze_time_ms']):
+                raise ValidationError("Goal times must be in order: gold ≤ silver ≤ bronze")
         
         # Validate guild ID
         if not isinstance(trial_data['guild_id'], int) or trial_data['guild_id'] <= 0:

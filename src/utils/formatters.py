@@ -72,15 +72,14 @@ class EmbedFormatter:
             )
             description_parts.append(leaderboard_text)
         
-        # Add spacing between leaderboard and goal times
-        
-        # Add goal times (without header)
-        goal_times_text = EmbedFormatter._format_goal_times(
-            trial_data['gold_time_ms'],
-            trial_data['silver_time_ms'], 
-            trial_data['bronze_time_ms']
-        )
-        description_parts.append(goal_times_text)
+        # Add goal times only if they exist
+        if trial_data.get('gold_time_ms') is not None:
+            goal_times_text = EmbedFormatter._format_goal_times(
+                trial_data['gold_time_ms'],
+                trial_data['silver_time_ms'], 
+                trial_data['bronze_time_ms']
+            )
+            description_parts.append(goal_times_text)
         
         embed = discord.Embed(
             title=title,
@@ -137,7 +136,7 @@ class EmbedFormatter:
         return "\n".join(lines)
     
     @staticmethod
-    def _format_goal_times(gold_ms: int, silver_ms: int, bronze_ms: int) -> str:
+    def _format_goal_times(gold_ms: Optional[int], silver_ms: Optional[int], bronze_ms: Optional[int]) -> str:
         """
         Format goal times for display.
         
@@ -149,6 +148,10 @@ class EmbedFormatter:
         Returns:
             str: Formatted goal times text
         """
+        # Return empty string if no medal times are set
+        if gold_ms is None or silver_ms is None or bronze_ms is None:
+            return ""
+        
         gold_str = TimeParser.format_time(gold_ms)
         silver_str = TimeParser.format_time(silver_ms)
         bronze_str = TimeParser.format_time(bronze_ms)
@@ -263,17 +266,18 @@ class EmbedFormatter:
             timestamp=datetime.now(timezone.utc)
         )
         
-        # Goal times
-        goal_times_text = EmbedFormatter._format_goal_times(
-            trial_data['gold_time_ms'],
-            trial_data['silver_time_ms'],
-            trial_data['bronze_time_ms']
-        )
-        embed.add_field(
-            name="🎯 Goal Times",
-            value=goal_times_text,
-            inline=True
-        )
+        # Goal times (only if they exist)
+        if trial_data.get('gold_time_ms') is not None:
+            goal_times_text = EmbedFormatter._format_goal_times(
+                trial_data['gold_time_ms'],
+                trial_data['silver_time_ms'],
+                trial_data['bronze_time_ms']
+            )
+            embed.add_field(
+                name="🎯 Goal Times",
+                value=goal_times_text,
+                inline=True
+            )
         
         # Duration info
         if 'end_date' in trial_data and trial_data['end_date']:
@@ -384,7 +388,7 @@ class EmbedFormatter:
         return embed
 
 
-def format_time_with_medal(time_ms: int, gold_ms: int, silver_ms: int, bronze_ms: int) -> str:
+def format_time_with_medal(time_ms: int, gold_ms: Optional[int], silver_ms: Optional[int], bronze_ms: Optional[int]) -> str:
     """
     Format a time with its corresponding medal emoji.
     

@@ -207,7 +207,7 @@ class TimeParser:
         return f"Improved by {improvement_str}!"
     
     @staticmethod
-    def parse_goal_times(gold_str: str, silver_str: str, bronze_str: str) -> Tuple[int, int, int]:
+    def parse_goal_times(gold_str: Optional[str], silver_str: Optional[str], bronze_str: Optional[str]) -> Tuple[int, int, int]:
         """
         Parse and validate goal times for a new challenge.
         
@@ -267,15 +267,15 @@ def format_duration(duration_days: int) -> str:
         return f"{duration_days} days"
 
 
-def get_medal_emoji(time_ms: int, gold_ms: int, silver_ms: int, bronze_ms: int) -> str:
+def get_medal_emoji(time_ms: int, gold_ms: Optional[int], silver_ms: Optional[int], bronze_ms: Optional[int]) -> str:
     """
     Get the appropriate medal emoji based on time performance.
     
     Args:
         time_ms: Submitted time in milliseconds
-        gold_ms: Gold medal threshold in milliseconds
-        silver_ms: Silver medal threshold in milliseconds
-        bronze_ms: Bronze medal threshold in milliseconds
+        gold_ms: Gold medal threshold in milliseconds (optional)
+        silver_ms: Silver medal threshold in milliseconds (optional)
+        bronze_ms: Bronze medal threshold in milliseconds (optional)
         
     Returns:
         str: Medal emoji ("🥇", "🥈", "🥉", or "" for no medal)
@@ -285,7 +285,13 @@ def get_medal_emoji(time_ms: int, gold_ms: int, silver_ms: int, bronze_ms: int) 
         "🥇"
         >>> get_medal_emoji(160000, 145000, 150000, 155000)
         ""
+        >>> get_medal_emoji(140000, None, None, None)
+        ""
     """
+    # If no medal thresholds are set, no medals can be earned
+    if gold_ms is None or silver_ms is None or bronze_ms is None:
+        return ""
+    
     if time_ms <= gold_ms:
         return "🥇"
     elif time_ms <= silver_ms:

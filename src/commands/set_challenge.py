@@ -6,7 +6,7 @@ with specified goal times and duration.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import List, Optional
 import logging
 import discord
 from discord import app_commands, Interaction
@@ -33,18 +33,19 @@ class SetChallengeCommand(AutocompleteCommand):
     - Sending confirmation
     """
     
-    async def execute(self, interaction: Interaction, track: str, gold_time: str, 
-                     silver_time: str, bronze_time: str, duration_days: int) -> None:
+    async def execute(self, interaction: Interaction, track: str, duration_days: int, 
+                     gold_time: Optional[str] = None, silver_time: Optional[str] = None, 
+                     bronze_time: Optional[str] = None) -> None:
         """
         Execute the set challenge command.
         
         Args:
             interaction: Discord interaction object
             track: Track name (validated via autocomplete)
-            gold_time: Gold medal goal time in MM:SS.mmm format
-            silver_time: Silver medal goal time in MM:SS.mmm format
-            bronze_time: Bronze medal goal time in MM:SS.mmm format
             duration_days: Challenge duration in days
+            gold_time: Gold medal goal time in MM:SS.mmm format (optional)
+            silver_time: Silver medal goal time in MM:SS.mmm format (optional)
+            bronze_time: Bronze medal goal time in MM:SS.mmm format (optional)
         """
         guild_id = self._validate_guild_interaction(interaction)
         user_id = self._validate_user_interaction(interaction)
@@ -55,7 +56,7 @@ class SetChallengeCommand(AutocompleteCommand):
         except ValidationError as e:
             raise ValidationError(e)
         
-        # Validate goal times
+        # Validate goal times (optional)
         try:
             gold_ms, silver_ms, bronze_ms = InputValidator.validate_goal_times(
                 gold_time, silver_time, bronze_time
@@ -130,7 +131,7 @@ class SetChallengeCommand(AutocompleteCommand):
         await self._send_response(interaction, embed=embed, ephemeral=False)
     
     async def _create_trial(self, guild_id: int, trial_number: int, track_name: str,
-                          gold_ms: int, silver_ms: int, bronze_ms: int, 
+                          gold_ms: Optional[int], silver_ms: Optional[int], bronze_ms: Optional[int], 
                           end_date: datetime) -> dict:
         """
         Create a new trial in the database.
@@ -139,9 +140,9 @@ class SetChallengeCommand(AutocompleteCommand):
             guild_id: Discord guild ID
             trial_number: Sequential trial number
             track_name: Track name
-            gold_ms: Gold medal time in milliseconds
-            silver_ms: Silver medal time in milliseconds  
-            bronze_ms: Bronze medal time in milliseconds
+            gold_ms: Gold medal time in milliseconds (optional)
+            silver_ms: Silver medal time in milliseconds (optional) 
+            bronze_ms: Bronze medal time in milliseconds (optional)
             end_date: When the trial ends
             
         Returns:
@@ -264,36 +265,36 @@ def setup_set_challenge_command(tree: app_commands.CommandTree) -> None:
     )
     @app_commands.describe(
         track="Select the track for the challenge",
-        gold_time="Gold medal goal time (MM:SS.mmm format, e.g., '2:20.000')",
-        silver_time="Silver medal goal time (MM:SS.mmm format, e.g., '2:25.000')",
-        bronze_time="Bronze medal goal time (MM:SS.mmm format, e.g., '2:30.000')",
-        duration_days="Challenge duration in days (1-30)"
+        duration_days="Challenge duration in days (1-30)",
+        gold_time="Gold medal goal time (MM:SS.mmm format, e.g., '2:20.000') - optional",
+        silver_time="Silver medal goal time (MM:SS.mmm format, e.g., '2:25.000') - optional",
+        bronze_time="Bronze medal goal time (MM:SS.mmm format, e.g., '2:30.000') - optional"
     )
-    async def set_challenge(interaction: Interaction, track: str, gold_time: str, 
-                           silver_time: str, bronze_time: str, duration_days: int):
+    async def set_challenge(interaction: Interaction, track: str, duration_days: int,
+                           gold_time: str = None, silver_time: str = None, bronze_time: str = None):
         """
         Create a new weekly time trial challenge.
         
-        Sets up a new challenge with goal times for gold, silver, and bronze medals.
+        Sets up a new challenge with optional goal times for gold, silver, and bronze medals.
         The challenge will automatically expire after the specified duration.
         
         Examples:
-        /set-challenge track:Rainbow Road gold_time:2:20.000 silver_time:2:25.000 bronze_time:2:30.000 duration_days:7
-        /set-challenge track:Mario Circuit gold_time:1:40.000 silver_time:1:45.000 bronze_time:1:50.000 duration_days:14
+        /set-challenge track:"Rainbow Road" duration_days:7 gold_time:2:20.000 silver_time:2:25.000 bronze_time:2:30.000
+        /set-challenge track:"Mario Circuit" duration_days:14
         
         Requirements:
-        - Gold time must be faster than or equal to silver time
-        - Silver time must be faster than or equal to bronze time
         - Duration must be between 1-30 days
+        - If medal times provided: Gold time must be faster than or equal to silver time, silver must be faster than bronze
+        - Medal times must be all provided or all omitted
         - Maximum 2 concurrent active trials per server
         """
         await set_cmd.handle_command(
             interaction, 
             track=track, 
+            duration_days=duration_days,
             gold_time=gold_time, 
             silver_time=silver_time,
-            bronze_time=bronze_time, 
-            duration_days=duration_days
+            bronze_time=bronze_time
         )
     
     @set_challenge.autocomplete('track')
