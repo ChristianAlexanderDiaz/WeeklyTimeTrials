@@ -10,9 +10,9 @@ CREATE TABLE weekly_trials (
     id SERIAL PRIMARY KEY,
     trial_number INTEGER NOT NULL,           -- Sequential trial number (1, 2, 3, ...)
     track_name VARCHAR(100) NOT NULL,        -- Mario Kart World track name
-    gold_time_ms INTEGER NOT NULL,           -- Gold medal goal time in milliseconds
-    silver_time_ms INTEGER NOT NULL,         -- Silver medal goal time in milliseconds  
-    bronze_time_ms INTEGER NOT NULL,         -- Bronze medal goal time in milliseconds
+    gold_time_ms INTEGER,                    -- Gold medal goal time in milliseconds (optional)
+    silver_time_ms INTEGER,                  -- Silver medal goal time in milliseconds (optional)
+    bronze_time_ms INTEGER,                  -- Bronze medal goal time in milliseconds (optional)
     start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     end_date TIMESTAMP,                      -- When challenge ends (NULL = active)
     status VARCHAR(20) DEFAULT 'active',     -- 'active', 'expired', 'ended'
@@ -23,7 +23,15 @@ CREATE TABLE weekly_trials (
     
     -- Constraints
     CONSTRAINT chk_status CHECK (status IN ('active', 'expired', 'ended')),
-    CONSTRAINT chk_times CHECK (bronze_time_ms >= silver_time_ms AND silver_time_ms >= gold_time_ms)
+    CONSTRAINT chk_times_optional 
+        CHECK (
+            -- Either all medal times are NULL (no medal requirements)
+            (gold_time_ms IS NULL AND silver_time_ms IS NULL AND bronze_time_ms IS NULL)
+            OR
+            -- Or all medal times are provided and properly ordered
+            (gold_time_ms IS NOT NULL AND silver_time_ms IS NOT NULL AND bronze_time_ms IS NOT NULL 
+             AND bronze_time_ms >= silver_time_ms AND silver_time_ms >= gold_time_ms)
+        )
 );
 
 -- Player times table  
@@ -97,6 +105,9 @@ COMMENT ON TABLE guild_settings IS 'Stores server-specific bot configuration and
 -- Comments on important columns
 COMMENT ON COLUMN weekly_trials.trial_number IS 'Sequential number for "Weekly Time Trial #N" naming';
 COMMENT ON COLUMN weekly_trials.status IS 'active: accepting submissions, expired: read-only, ended: manually closed';
+COMMENT ON COLUMN weekly_trials.gold_time_ms IS 'Gold medal goal time in milliseconds (optional)';
+COMMENT ON COLUMN weekly_trials.silver_time_ms IS 'Silver medal goal time in milliseconds (optional)';
+COMMENT ON COLUMN weekly_trials.bronze_time_ms IS 'Bronze medal goal time in milliseconds (optional)';
 COMMENT ON COLUMN player_times.user_id IS 'Discord user ID - permanent identifier, names resolved dynamically';
 COMMENT ON COLUMN player_times.time_ms IS 'Time in milliseconds for precise comparison and sorting';
 COMMENT ON COLUMN guild_settings.leaderboard_channel_id IS 'Default Discord channel ID for posting live leaderboard messages';
