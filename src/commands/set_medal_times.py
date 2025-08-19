@@ -90,7 +90,7 @@ class SetMedalTimesCommand(AutocompleteCommand):
         # Update live leaderboard if it exists
         from ..utils.leaderboard_manager import update_live_leaderboard
         try:
-            await update_live_leaderboard(updated_trial_data)
+            await update_live_leaderboard(updated_trial_data['id'], interaction.guild)
             logger.info(f"Updated live leaderboard for trial #{trial_data['trial_number']} after medal time change")
         except Exception as e:
             # Don't fail the command if leaderboard update fails
