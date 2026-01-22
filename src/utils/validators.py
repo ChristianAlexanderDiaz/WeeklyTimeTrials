@@ -110,8 +110,8 @@ class InputValidator:
         if duration < 1:
             raise ValidationError("Duration must be at least 1 day")
         
-        if duration > 30:
-            raise ValidationError("Duration cannot exceed 30 days")
+        if duration > 180:
+            raise ValidationError("Duration cannot exceed 180 days")
         
         return duration
     

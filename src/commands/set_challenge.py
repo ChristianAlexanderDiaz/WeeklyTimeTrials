@@ -265,7 +265,7 @@ def setup_set_challenge_command(tree: app_commands.CommandTree) -> None:
     )
     @app_commands.describe(
         track="Select the track for the challenge",
-        duration_days="Challenge duration in days (1-30)",
+        duration_days="Challenge duration in days (1-180)",
         gold_time="Gold medal goal time (MM:SS.mmm format, e.g., '2:20.000') - optional",
         silver_time="Silver medal goal time (MM:SS.mmm format, e.g., '2:25.000') - optional",
         bronze_time="Bronze medal goal time (MM:SS.mmm format, e.g., '2:30.000') - optional"
@@ -283,7 +283,7 @@ def setup_set_challenge_command(tree: app_commands.CommandTree) -> None:
         /set-challenge track:"Mario Circuit" duration_days:14
         
         Requirements:
-        - Duration must be between 1-30 days
+        - Duration must be between 1-180 days
         - If medal times provided: Gold time must be faster than or equal to silver time, silver must be faster than bronze
         - Medal times must be all provided or all omitted
         - Maximum 2 concurrent active trials per server
