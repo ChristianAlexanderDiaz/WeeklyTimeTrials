@@ -23,12 +23,12 @@ logger = logging.getLogger(__name__)
 class SetChallengeCommand(AutocompleteCommand):
     """
     Command to create a new weekly time trial challenge.
-    
+
     This command handles:
     - Track name validation with autocomplete
     - Goal time validation and ordering
     - Duration validation
-    - Checking concurrent trial limits
+    - Ensuring tracks don't have duplicate active trials
     - Creating the trial in database
     - Sending confirmation
     """
@@ -77,14 +77,6 @@ class SetChallengeCommand(AutocompleteCommand):
                 f"There's already an active trial for **{track_name}** "
                 f"(Trial #{existing_trial['trial_number']}). End it first using "
                 f"`/end-challenge {track_name}` before creating a new one."
-            )
-        
-        # Check concurrent trial limit
-        active_count = await self._count_active_trials(guild_id)
-        if active_count >= settings.MAX_CONCURRENT_TRIALS:
-            raise CommandError(
-                f"Maximum of {settings.MAX_CONCURRENT_TRIALS} concurrent trials allowed. "
-                f"End an existing trial before creating a new one."
             )
         
         # Calculate end date
@@ -286,7 +278,7 @@ def setup_set_challenge_command(tree: app_commands.CommandTree) -> None:
         - Duration must be between 1-180 days
         - If medal times provided: Gold time must be faster than or equal to silver time, silver must be faster than bronze
         - Medal times must be all provided or all omitted
-        - Maximum 2 concurrent active trials per server
+        - Each track can only have one active trial at a time
         """
         await set_cmd.handle_command(
             interaction, 
