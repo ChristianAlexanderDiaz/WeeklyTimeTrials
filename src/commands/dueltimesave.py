@@ -102,14 +102,14 @@ class DuelTimeSaveCommand(AutocompleteCommand):
 
         try:
             opponent_user = await interaction.guild.fetch_member(opponent_id)
+            # Combine ping and taunt in the content
+            full_message = f"{opponent_user.mention}\n\n{taunt_message}"
             await self._send_response(
                 interaction,
-                content=f"{opponent_user.mention}",
+                content=full_message,
                 embed=embed,
                 ephemeral=False
             )
-            # Send taunt as follow-up
-            await interaction.followup.send(content=taunt_message, ephemeral=False)
         except Exception as e:
             logger.error(f"Error pinging opponent: {e}")
             await self._send_response(interaction, embed=embed, ephemeral=False)
