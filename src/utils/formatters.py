@@ -31,24 +31,25 @@ class EmbedFormatter:
     COLOR_TRIAL = 0x800080    # Purple
     
     @staticmethod
-    def create_leaderboard_embed(trial_data: Dict[str, Any], 
+    def create_leaderboard_embed(trial_data: Dict[str, Any],
                                leaderboard_data: List[Dict[str, Any]],
                                user_display_names: Dict[int, str]) -> discord.Embed:
         """
         Create a formatted leaderboard embed.
-        
+
         Args:
             trial_data: Trial information (number, track, goal times, etc.)
             leaderboard_data: List of player times with rankings
             user_display_names: Mapping of user_id -> display_name
-            
+
         Returns:
             discord.Embed: Formatted leaderboard embed
         """
         trial_number = trial_data['trial_number']
         track_name = trial_data['track_name']
         status = trial_data.get('status', 'active')
-        
+        category = trial_data.get('category', 'shrooms')
+
         # Create embed title with status emoji
         status_emoji = ""
         if status == 'active':
@@ -57,8 +58,10 @@ class EmbedFormatter:
             status_emoji = " 🟡"
         elif status == 'ended':
             status_emoji = " 🔴"
-        
-        title = f"🏁 Weekly Time Trial #{trial_number} - {track_name}{status_emoji}"
+
+        # Add category to title (capitalize first letter)
+        category_display = f" ({category.title()})" if category else ""
+        title = f"🏁 Weekly Time Trial #{trial_number} - {track_name}{category_display}{status_emoji}"
         
         # Build the description with leaderboard and goal times
         description_parts = []
@@ -159,31 +162,36 @@ class EmbedFormatter:
         return f"🥇 **{gold_str}**  •  🥈 **{silver_str}**  •  🥉 **{bronze_str}**"
     
     @staticmethod
-    def create_time_submission_embed(trial_data: Dict[str, Any], 
+    def create_time_submission_embed(trial_data: Dict[str, Any],
                                    time_ms: int,
                                    is_improvement: bool = False,
                                    improvement_text: Optional[str] = None,
                                    medal_achieved: Optional[str] = None) -> discord.Embed:
         """
         Create an embed for successful time submission.
-        
+
         Args:
             trial_data: Trial information
             time_ms: Submitted time in milliseconds
             is_improvement: Whether this is an improvement over previous time
             improvement_text: Text describing the improvement
             medal_achieved: Medal level achieved ('gold', 'silver', 'bronze', or None)
-            
+
         Returns:
             discord.Embed: Formatted submission confirmation embed
         """
         trial_number = trial_data['trial_number']
         track_name = trial_data['track_name']
+        category = trial_data.get('category', 'shrooms')
         time_str = TimeParser.format_time(time_ms)
+
+        # Add category to track name display
+        category_display = f" ({category.title()})" if category else ""
+        track_display = f"{track_name}{category_display}"
         
         if is_improvement:
             # Ultra minimal format for improvements
-            title = f"🏁 {track_name} Improvement"
+            title = f"🏁 {track_display} Improvement"
             
             # Build description with new time, medal, and improvement
             description_parts = []
@@ -223,7 +231,7 @@ class EmbedFormatter:
             # Main submission info
             embed.add_field(
                 name="🏁 Challenge",
-                value=f"Weekly Time Trial #{trial_number}\n**{track_name}**",
+                value=f"Weekly Time Trial #{trial_number}\n**{track_display}**",
                 inline=True
             )
             
@@ -249,19 +257,23 @@ class EmbedFormatter:
     def create_trial_created_embed(trial_data: Dict[str, Any]) -> discord.Embed:
         """
         Create an embed for successful trial creation.
-        
+
         Args:
             trial_data: New trial information
-            
+
         Returns:
             discord.Embed: Formatted trial creation embed
         """
         trial_number = trial_data['trial_number']
         track_name = trial_data['track_name']
-        
+        category = trial_data.get('category', 'shrooms')
+
+        # Add category to track name display
+        category_display = f" ({category.title()})" if category else ""
+
         embed = discord.Embed(
             title="🏁 New Time Trial Created!",
-            description=f"**Weekly Time Trial #{trial_number} - {track_name}**",
+            description=f"**Weekly Time Trial #{trial_number} - {track_name}{category_display}**",
             color=EmbedFormatter.COLOR_TRIAL,
             timestamp=datetime.now(timezone.utc)
         )

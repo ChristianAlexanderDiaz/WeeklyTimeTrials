@@ -33,29 +33,37 @@ class SetChallengeCommand(AutocompleteCommand):
     - Sending confirmation
     """
     
-    async def execute(self, interaction: Interaction, track: str, duration_days: int, 
-                     gold_time: Optional[str] = None, silver_time: Optional[str] = None, 
+    async def execute(self, interaction: Interaction, track: str, duration_days: int,
+                     category: str = 'shrooms',
+                     gold_time: Optional[str] = None, silver_time: Optional[str] = None,
                      bronze_time: Optional[str] = None) -> None:
         """
         Execute the set challenge command.
-        
+
         Args:
             interaction: Discord interaction object
             track: Track name (validated via autocomplete)
             duration_days: Challenge duration in days
+            category: Challenge category ('shrooms' or 'shroomless')
             gold_time: Gold medal goal time in MM:SS.mmm format (optional)
             silver_time: Silver medal goal time in MM:SS.mmm format (optional)
             bronze_time: Bronze medal goal time in MM:SS.mmm format (optional)
         """
         guild_id = self._validate_guild_interaction(interaction)
         user_id = self._validate_user_interaction(interaction)
-        
+
         # Validate track name
         try:
             track_name = InputValidator.validate_track_name(track, TrackManager.get_all_tracks())
         except ValidationError as e:
             raise ValidationError(e)
-        
+
+        # Validate category
+        try:
+            category = InputValidator.validate_category(category)
+        except ValidationError as e:
+            raise ValidationError(e)
+
         # Validate goal times (optional)
         try:
             gold_ms, silver_ms, bronze_ms = InputValidator.validate_goal_times(
@@ -63,20 +71,20 @@ class SetChallengeCommand(AutocompleteCommand):
             )
         except ValidationError as e:
             raise ValidationError(e)
-        
+
         # Validate duration
         try:
             duration = InputValidator.validate_duration_days(duration_days)
         except ValidationError as e:
             raise ValidationError(e)
-        
-        # Check if there's already an active trial for this track
-        existing_trial = await self._get_active_trial_by_track(guild_id, track_name)
+
+        # Check if there's already an active trial for this track AND category
+        existing_trial = await self._get_active_trial_by_track_and_category(guild_id, track_name, category)
         if existing_trial:
             raise CommandError(
-                f"There's already an active trial for **{track_name}** "
+                f"There's already an active {category} trial for **{track_name}** "
                 f"(Trial #{existing_trial['trial_number']}). End it first using "
-                f"`/end-challenge {track_name}` before creating a new one."
+                f"`/end-challenge` before creating a new one."
             )
         
         # Calculate end date
@@ -91,6 +99,7 @@ class SetChallengeCommand(AutocompleteCommand):
             guild_id=guild_id,
             trial_number=trial_number,
             track_name=track_name,
+            category=category,
             gold_ms=gold_ms,
             silver_ms=silver_ms,
             bronze_ms=bronze_ms,
@@ -123,45 +132,47 @@ class SetChallengeCommand(AutocompleteCommand):
         await self._send_response(interaction, embed=embed, ephemeral=False)
     
     async def _create_trial(self, guild_id: int, trial_number: int, track_name: str,
-                          gold_ms: Optional[int], silver_ms: Optional[int], bronze_ms: Optional[int], 
-                          end_date: datetime) -> dict:
+                          category: str, gold_ms: Optional[int], silver_ms: Optional[int],
+                          bronze_ms: Optional[int], end_date: datetime) -> dict:
         """
         Create a new trial in the database.
-        
+
         Args:
             guild_id: Discord guild ID
             trial_number: Sequential trial number
             track_name: Track name
+            category: Challenge category ('shrooms' or 'shroomless')
             gold_ms: Gold medal time in milliseconds (optional)
-            silver_ms: Silver medal time in milliseconds (optional) 
+            silver_ms: Silver medal time in milliseconds (optional)
             bronze_ms: Bronze medal time in milliseconds (optional)
             end_date: When the trial ends
-            
+
         Returns:
             Created trial data
-            
+
         Raises:
             CommandError: If creation fails
         """
         query = """
             INSERT INTO weekly_trials (
-                trial_number, 
-                track_name, 
-                gold_time_ms, 
-                silver_time_ms, 
-                bronze_time_ms, 
-                end_date, 
+                trial_number,
+                track_name,
+                category,
+                gold_time_ms,
+                silver_time_ms,
+                bronze_time_ms,
+                end_date,
                 guild_id
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-            RETURNING id, trial_number, track_name, gold_time_ms, silver_time_ms, bronze_time_ms, start_date, end_date
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, trial_number, track_name, category, gold_time_ms, silver_time_ms, bronze_time_ms, start_date, end_date
         """
-        
-        params = (trial_number, track_name, gold_ms, silver_ms, bronze_ms, end_date, guild_id)
+
+        params = (trial_number, track_name, category, gold_ms, silver_ms, bronze_ms, end_date, guild_id)
         results = self._execute_query(query, params, fetch=True)
-        
+
         if not results:
             raise CommandError("Failed to create trial. Please try again.")
-        
+
         return results[0]
     
     async def autocomplete_callback(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
@@ -217,23 +228,58 @@ class SetChallengeCommand(AutocompleteCommand):
                 for choice in get_track_autocomplete_choices(current)[:25]
             ]
     
+    async def _get_active_trial_by_track_and_category(self, guild_id: int, track_name: str, category: str) -> Optional[dict]:
+        """
+        Get active trial information for a specific track and category.
+
+        Args:
+            guild_id: Discord guild ID
+            track_name: Track name to search for
+            category: Category to search for
+
+        Returns:
+            Trial data dictionary or None if not found
+        """
+        query = """
+            SELECT
+                id,
+                trial_number,
+                track_name,
+                category,
+                gold_time_ms,
+                silver_time_ms,
+                bronze_time_ms,
+                start_date,
+                end_date,
+                status
+            FROM weekly_trials
+            WHERE guild_id = %s
+                AND track_name = %s
+                AND category = %s
+                AND status = 'active'
+            LIMIT 1
+        """
+
+        results = self._execute_query(query, (guild_id, track_name, category))
+        return results[0] if results else None
+
     async def _get_active_track_names(self, guild_id: int) -> List[str]:
         """
         Get list of track names that have active trials.
-        
+
         Args:
             guild_id: Discord guild ID
-            
+
         Returns:
             List of track names with active trials
         """
         query = """
             SELECT DISTINCT track_name
-            FROM weekly_trials 
-            WHERE guild_id = %s 
+            FROM weekly_trials
+            WHERE guild_id = %s
                 AND status = 'active'
         """
-        
+
         try:
             results = self._execute_query(query, (guild_id,))
             return [row['track_name'] for row in results]
@@ -258,33 +304,41 @@ def setup_set_challenge_command(tree: app_commands.CommandTree) -> None:
     @app_commands.describe(
         track="Select the track for the challenge",
         duration_days="Challenge duration in days (1-180)",
+        category="Challenge category (shrooms or shroomless)",
         gold_time="Gold medal goal time (MM:SS.mmm format, e.g., '2:20.000') - optional",
         silver_time="Silver medal goal time (MM:SS.mmm format, e.g., '2:25.000') - optional",
         bronze_time="Bronze medal goal time (MM:SS.mmm format, e.g., '2:30.000') - optional"
     )
+    @app_commands.choices(category=[
+        app_commands.Choice(name="Shrooms", value="shrooms"),
+        app_commands.Choice(name="Shroomless", value="shroomless")
+    ])
     async def set_challenge(interaction: Interaction, track: str, duration_days: int,
+                           category: str = 'shrooms',
                            gold_time: str = None, silver_time: str = None, bronze_time: str = None):
         """
         Create a new weekly time trial challenge.
-        
+
         Sets up a new challenge with optional goal times for gold, silver, and bronze medals.
         The challenge will automatically expire after the specified duration.
-        
+
         Examples:
-        /set-challenge track:"Rainbow Road" duration_days:7 gold_time:2:20.000 silver_time:2:25.000 bronze_time:2:30.000
-        /set-challenge track:"Mario Circuit" duration_days:14
-        
+        /set-challenge track:"Rainbow Road" duration_days:7 category:shrooms gold_time:2:20.000 silver_time:2:25.000 bronze_time:2:30.000
+        /set-challenge track:"Mario Circuit" duration_days:14 category:shroomless
+
         Requirements:
         - Duration must be between 1-180 days
+        - Category must be either 'shrooms' or 'shroomless'
         - If medal times provided: Gold time must be faster than or equal to silver time, silver must be faster than bronze
         - Medal times must be all provided or all omitted
-        - Each track can only have one active trial at a time
+        - Each track can only have one active trial per category at a time
         """
         await set_cmd.handle_command(
-            interaction, 
-            track=track, 
+            interaction,
+            track=track,
             duration_days=duration_days,
-            gold_time=gold_time, 
+            category=category,
+            gold_time=gold_time,
             silver_time=silver_time,
             bronze_time=bronze_time
         )

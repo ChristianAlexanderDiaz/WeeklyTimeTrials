@@ -5,7 +5,7 @@ This command allows users to remove their submitted time from a weekly trial.
 This is useful if they made a mistake or want to start fresh.
 """
 
-from typing import List
+from typing import List, Dict
 import discord
 from discord import app_commands, Interaction
 
@@ -31,25 +31,39 @@ class RemoveTimeCommand(AutocompleteCommand):
     async def execute(self, interaction: Interaction, track: str) -> None:
         """
         Execute the remove time command.
-        
+
         Args:
             interaction: Discord interaction object
-            track: Track name (validated via autocomplete)
+            track: Track name with category (format: "track|category")
         """
         guild_id = self._validate_guild_interaction(interaction)
         user_id = self._validate_user_interaction(interaction)
-        
+
+        # Parse track and category from pipe-separated value
+        if '|' in track:
+            track_name, category = track.split('|', 1)
+        else:
+            # Fallback for backwards compatibility or manual entry
+            track_name = track
+            category = 'shrooms'
+
         # Validate track name
         try:
-            track_name = InputValidator.validate_track_name(track, TrackManager.get_all_tracks())
+            track_name = InputValidator.validate_track_name(track_name, TrackManager.get_all_tracks())
         except ValidationError as e:
             raise ValidationError(e)
-        
-        # Get trial for this track (any status - user might want to remove from expired trials)
-        trial_data = await self._get_trial_by_track(guild_id, track_name)
+
+        # Validate category
+        try:
+            category = InputValidator.validate_category(category)
+        except ValidationError as e:
+            raise ValidationError(e)
+
+        # Get trial for this track and category (any status - user might want to remove from expired trials)
+        trial_data = await self._get_trial_by_track_and_category(guild_id, track_name, category)
         if not trial_data:
             raise CommandError(
-                f"No trial found for **{track_name}**."
+                f"No {category} trial found for **{track_name}**."
             )
         
         trial_id = trial_data['id']
@@ -87,10 +101,11 @@ class RemoveTimeCommand(AutocompleteCommand):
             logger.error(f"Error updating live leaderboard after time removal: {e}")
         
         # Create success response
+        category_display = f" ({category.title()})" if category else ""
         embed = EmbedFormatter.create_success_embed(
             "Time Removed",
             f"Your time of **{removed_time_str}** has been removed from "
-            f"**Weekly Time Trial #{trial_number} - {track_name}**.",
+            f"**Weekly Time Trial #{trial_number} - {track_name}{category_display}**.",
             "You can submit a new time using the `/weeklytimesave` command."
         )
         
@@ -120,42 +135,42 @@ class RemoveTimeCommand(AutocompleteCommand):
     
     async def autocomplete_callback(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
         """
-        Provide autocomplete choices for track names.
-        
+        Provide autocomplete choices for track names with categories.
+
         Only shows tracks where the user has submitted a time in an active trial.
-        
+
         Args:
             interaction: Discord interaction object
             current: Current user input
-            
+
         Returns:
             List of autocomplete choices for tracks with user submissions
         """
         try:
             guild_id = self._validate_guild_interaction(interaction)
             user_id = self._validate_user_interaction(interaction)
-            
-            # Get tracks where user has submitted times in active trials
-            user_tracks = await self._get_user_trial_tracks(guild_id, user_id)
-            
-            # Filter tracks based on user input
+
+            # Get trials where user has submitted times in active trials
+            user_trials = await self._get_user_trials_with_category(guild_id, user_id)
+
+            # Filter based on user input
             if current:
                 current_lower = current.lower()
-                filtered_tracks = [
-                    track for track in user_tracks
-                    if current_lower in track.lower()
+                filtered_trials = [
+                    trial for trial in user_trials
+                    if current_lower in trial['display'].lower()
                 ]
             else:
-                filtered_tracks = user_tracks
-            
+                filtered_trials = user_trials
+
             # Limit to 25 choices (Discord limit)
-            filtered_tracks = filtered_tracks[:25]
-            
+            filtered_trials = filtered_trials[:25]
+
             return [
-                app_commands.Choice(name=track, value=track)
-                for track in filtered_tracks
+                app_commands.Choice(name=trial['display'], value=trial['value'])
+                for trial in filtered_trials
             ]
-            
+
         except Exception as e:
             self.logger.error(f"Autocomplete error: {e}")
             # Fallback to all tracks if database query fails
@@ -164,33 +179,74 @@ class RemoveTimeCommand(AutocompleteCommand):
                 for choice in get_track_autocomplete_choices(current)[:25]
             ]
     
-    async def _get_user_trial_tracks(self, guild_id: int, user_id: int) -> List[str]:
+    async def _get_user_trials_with_category(self, guild_id: int, user_id: int) -> List[Dict[str, str]]:
         """
-        Get list of track names where the user has submitted times in active trials.
-        
+        Get list of trials where the user has submitted times in active trials.
+
         Args:
             guild_id: Discord guild ID
             user_id: Discord user ID
-            
+
         Returns:
-            List of track names where user has active submissions
+            List of dicts with 'display' (formatted) and 'value' (pipe-separated) keys
         """
         query = """
-            SELECT DISTINCT wt.track_name
+            SELECT DISTINCT wt.track_name, wt.category
             FROM weekly_trials wt
             JOIN player_times pt ON wt.id = pt.trial_id
-            WHERE wt.guild_id = %s 
+            WHERE wt.guild_id = %s
                 AND pt.user_id = %s
                 AND wt.status = 'active'
-            ORDER BY wt.track_name
+            ORDER BY wt.track_name, wt.category
         """
-        
+
         try:
             results = self._execute_query(query, (guild_id, user_id))
-            return [row['track_name'] for row in results]
+            return [
+                {
+                    'display': f"{row['track_name']} ({row['category'].title()})",
+                    'value': f"{row['track_name']}|{row['category']}"
+                }
+                for row in results
+            ]
         except Exception:
             # Fallback to empty list if query fails
             return []
+
+    async def _get_trial_by_track_and_category(self, guild_id: int, track_name: str, category: str):
+        """
+        Get trial information for a specific track and category (any status).
+
+        Args:
+            guild_id: Discord guild ID
+            track_name: Track name to search for
+            category: Category to search for
+
+        Returns:
+            Most recent trial data for the track and category or None if not found
+        """
+        query = """
+            SELECT
+                id,
+                trial_number,
+                track_name,
+                category,
+                gold_time_ms,
+                silver_time_ms,
+                bronze_time_ms,
+                start_date,
+                end_date,
+                status
+            FROM weekly_trials
+            WHERE guild_id = %s
+                AND track_name = %s
+                AND category = %s
+            ORDER BY created_at DESC
+            LIMIT 1
+        """
+
+        results = self._execute_query(query, (guild_id, track_name, category))
+        return results[0] if results else None
 
 
 # Command setup function for the main bot file

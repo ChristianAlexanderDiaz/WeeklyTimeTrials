@@ -25,6 +25,12 @@ from .commands.end_challenge import setup_end_challenge_command
 from .commands.set_leaderboard_channel import setup_set_leaderboard_channel_command
 from .commands.set_medal_times import setup_set_medal_times_command
 from .commands.remove_medal_times import setup_remove_medal_times_command
+from .commands.create_duel import setup_create_duel_command
+from .commands.accept_duel import setup_accept_duel_command
+from .commands.decline_duel import setup_decline_duel_command
+from .commands.dueltimesave import setup_dueltimesave_command
+from .commands.duel_results import setup_duel_results_command
+from .commands.cancel_duel import setup_cancel_duel_command
 
 # Configure logging
 logging.basicConfig(
@@ -103,19 +109,27 @@ class MKWTimeTrialBot(commands.Bot):
         """
         logger.info("Registering slash commands...")
         
-        # User commands
+        # User commands - Weekly Trials
         setup_save_command(self.tree)
         setup_leaderboard_command(self.tree)
         setup_active_trials_command(self.tree)
         setup_remove_time_command(self.tree)
-        
+
+        # User commands - 1v1 Duels
+        setup_create_duel_command(self.tree)
+        setup_accept_duel_command(self.tree)
+        setup_decline_duel_command(self.tree)
+        setup_dueltimesave_command(self.tree)
+        setup_duel_results_command(self.tree)
+        setup_cancel_duel_command(self.tree)
+
         # Admin commands (no restrictions as specified)
         setup_set_challenge_command(self.tree)
         setup_end_challenge_command(self.tree)
         setup_set_leaderboard_channel_command(self.tree)
         setup_set_medal_times_command(self.tree)
         setup_remove_medal_times_command(self.tree)
-        
+
         logger.info("All commands registered successfully")
     
     async def on_error(self, event: str, *args, **kwargs) -> None:

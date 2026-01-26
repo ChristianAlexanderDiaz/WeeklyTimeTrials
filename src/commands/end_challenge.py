@@ -89,19 +89,20 @@ class EndChallengeCommand(AutocompleteCommand):
             Trial data if found and active, None otherwise
         """
         query = """
-            SELECT 
+            SELECT
                 id,
                 trial_number,
                 track_name,
+                category,
                 gold_time_ms,
                 silver_time_ms,
                 bronze_time_ms,
                 start_date,
                 end_date,
                 status
-            FROM weekly_trials 
-            WHERE guild_id = %s 
-                AND trial_number = %s 
+            FROM weekly_trials
+            WHERE guild_id = %s
+                AND trial_number = %s
                 AND status = 'active'
             LIMIT 1
         """
@@ -181,21 +182,23 @@ class EndChallengeCommand(AutocompleteCommand):
     async def _create_trial_ended_embed(self, trial_data: dict, final_stats: dict, guild) -> discord.Embed:
         """
         Create an embed announcing the trial has ended.
-        
+
         Args:
             trial_data: Trial information
             final_stats: Final trial statistics
             guild: Discord guild object
-            
+
         Returns:
             Formatted embed with trial end announcement
         """
         trial_number = trial_data['trial_number']
         track_name = trial_data['track_name']
-        
+        category = trial_data.get('category', 'shrooms')
+        category_display = f" ({category.title()})" if category else ""
+
         embed = discord.Embed(
             title="🏁 Trial Ended",
-            description=f"**Weekly Time Trial #{trial_number} - {track_name}** has been manually ended.",
+            description=f"**Weekly Time Trial #{trial_number} - {track_name}{category_display}** has been manually ended.",
             color=EmbedFormatter.COLOR_WARNING
         )
         

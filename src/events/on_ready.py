@@ -155,7 +155,7 @@ class BotEvents:
     async def _run_maintenance(self) -> None:
         """
         Run maintenance operations.
-        
+
         This method performs database cleanup and maintenance tasks.
         """
         try:
@@ -163,13 +163,18 @@ class BotEvents:
             expired_count = await self._mark_expired_trials()
             if expired_count > 0:
                 logger.info(f"Marked {expired_count} trials as expired")
-            
+
             # Clean up old expired trials (after grace period)
             from ..config.settings import settings
             cleanup_count = await self._cleanup_old_trials(settings.EXPIRED_TRIAL_CLEANUP_DAYS)
             if cleanup_count > 0:
                 logger.info(f"Cleaned up {cleanup_count} old expired trials")
-                
+
+            # Mark expired duels
+            expired_duels_count = await self._mark_expired_duels()
+            if expired_duels_count > 0:
+                logger.info(f"Marked {expired_duels_count} duels as expired")
+
         except Exception as e:
             logger.error(f"Error during maintenance: {e}", exc_info=True)
     
@@ -208,39 +213,93 @@ class BotEvents:
     async def _cleanup_old_trials(self, cleanup_days: int) -> int:
         """
         Delete trials that have been expired for more than the cleanup period.
-        
+
         Args:
             cleanup_days: Number of days after expiration to keep trials
-            
+
         Returns:
             Number of trials cleaned up
         """
         query = """
-            DELETE FROM weekly_trials 
-            WHERE status = 'expired' 
+            DELETE FROM weekly_trials
+            WHERE status = 'expired'
                 AND end_date < CURRENT_TIMESTAMP - INTERVAL '%s days'
             RETURNING id, trial_number, track_name, guild_id
         """
-        
+
         try:
             # Note: This uses string formatting which is normally dangerous,
             # but cleanup_days is from config, not user input
             results = db_manager.execute_query(
-                query.replace('%s', str(cleanup_days)), 
+                query.replace('%s', str(cleanup_days)),
                 fetch=True
             )
-            
+
             # Log cleaned up trials
             for trial in results:
                 logger.info(
                     f"Cleaned up expired trial #{trial['trial_number']} "
                     f"({trial['track_name']}) from guild {trial['guild_id']}"
                 )
-            
+
             return len(results)
-            
+
         except Exception as e:
             logger.error(f"Error cleaning up old trials: {e}")
+            return 0
+
+    async def _mark_expired_duels(self) -> int:
+        """
+        Mark pending or active duels as expired when their end_date is reached.
+
+        For active duels, determines winner by default if only one user submitted.
+
+        Returns:
+            Number of duels marked as expired
+        """
+        from ..utils.duel_manager import DuelManager
+
+        query = """
+            UPDATE challenges_1v1
+            SET status = 'expired'
+            WHERE status IN ('pending', 'active')
+                AND end_date IS NOT NULL
+                AND end_date < CURRENT_TIMESTAMP
+            RETURNING id, challenge_number, guild_id, status
+        """
+
+        try:
+            results = db_manager.execute_query(query, fetch=True)
+
+            # For active duels that expired, determine winner by default
+            for duel in results:
+                if duel['status'] == 'active':
+                    # Determine winner
+                    winner_user_id = DuelManager.determine_winner(duel['id'])
+
+                    # Update winner if determined
+                    if winner_user_id is not None:
+                        update_query = """
+                            UPDATE challenges_1v1
+                            SET winner_user_id = %s,
+                                status = 'completed'
+                            WHERE id = %s
+                        """
+                        db_manager.execute_query(update_query, (winner_user_id, duel['id']))
+
+                        logger.info(
+                            f"Duel #{duel['challenge_number']} in guild {duel['guild_id']} "
+                            f"completed by default (winner: {winner_user_id})"
+                        )
+
+                logger.info(
+                    f"Duel #{duel['challenge_number']} in guild {duel['guild_id']} has expired"
+                )
+
+            return len(results)
+
+        except Exception as e:
+            logger.error(f"Error marking expired duels: {e}")
             return 0
     
     async def shutdown(self) -> None:

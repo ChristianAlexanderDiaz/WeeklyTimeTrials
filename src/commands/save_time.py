@@ -36,33 +36,47 @@ class SaveTimeCommand(AutocompleteCommand):
     async def execute(self, interaction: Interaction, track: str, time: str) -> None:
         """
         Execute the save time command.
-        
+
         Args:
             interaction: Discord interaction object
-            track: Track name (validated via autocomplete)
+            track: Track name with category (format: "track|category")
             time: Time string in MM:SS.mmm format
         """
         guild_id = self._validate_guild_interaction(interaction)
         user_id = self._validate_user_interaction(interaction)
-        
+
         # Validate and parse the time input
         try:
             time_ms = InputValidator.validate_time_input(time)
         except ValidationError as e:
             raise ValidationError(f"Invalid time format: {e}")
-        
+
+        # Parse track and category from pipe-separated value
+        if '|' in track:
+            track_name, category = track.split('|', 1)
+        else:
+            # Fallback for backwards compatibility or manual entry
+            track_name = track
+            category = 'shrooms'
+
         # Validate track name
         try:
-            track_name = InputValidator.validate_track_name(track, TrackManager.get_all_tracks())
+            track_name = InputValidator.validate_track_name(track_name, TrackManager.get_all_tracks())
         except ValidationError as e:
             raise ValidationError(e)
-        
-        # Get active trial for this track
-        trial_data = await self._get_active_trial_by_track(guild_id, track_name)
+
+        # Validate category
+        try:
+            category = InputValidator.validate_category(category)
+        except ValidationError as e:
+            raise ValidationError(e)
+
+        # Get active trial for this track and category
+        trial_data = await self._get_active_trial_by_track_and_category(guild_id, track_name, category)
         if not trial_data:
             raise CommandError(
-                f"No active trial found for **{track_name}**. "
-                f"Use `/leaderboard {track_name}` to see if there's an inactive trial, "
+                f"No active {category} trial found for **{track_name}**. "
+                f"Use `/leaderboard` to see if there's an inactive trial, "
                 f"or ask an admin to create a new challenge."
             )
         
@@ -181,41 +195,41 @@ class SaveTimeCommand(AutocompleteCommand):
     
     async def autocomplete_callback(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
         """
-        Provide autocomplete choices for track names.
-        
+        Provide autocomplete choices for track names with categories.
+
         Only shows tracks that have active trials to prevent confusion.
-        
+
         Args:
             interaction: Discord interaction object
             current: Current user input
-            
+
         Returns:
-            List of autocomplete choices for active tracks
+            List of autocomplete choices for active tracks with categories
         """
         try:
             guild_id = self._validate_guild_interaction(interaction)
-            
-            # Get tracks with active trials
-            active_tracks = await self._get_active_track_names(guild_id)
-            
-            # Filter tracks based on user input
+
+            # Get tracks with active trials (including category)
+            active_trials = await self._get_active_trials_with_category(guild_id)
+
+            # Filter based on user input
             if current:
                 current_lower = current.lower()
-                filtered_tracks = [
-                    track for track in active_tracks
-                    if current_lower in track.lower()
+                filtered_trials = [
+                    trial for trial in active_trials
+                    if current_lower in trial['display'].lower()
                 ]
             else:
-                filtered_tracks = active_tracks
-            
+                filtered_trials = active_trials
+
             # Limit to 25 choices (Discord limit)
-            filtered_tracks = filtered_tracks[:25]
-            
+            filtered_trials = filtered_trials[:25]
+
             return [
-                app_commands.Choice(name=track, value=track)
-                for track in filtered_tracks
+                app_commands.Choice(name=trial['display'], value=trial['value'])
+                for trial in filtered_trials
             ]
-            
+
         except Exception as e:
             self.logger.error(f"Autocomplete error: {e}")
             # Fallback to all tracks if database query fails
@@ -224,30 +238,71 @@ class SaveTimeCommand(AutocompleteCommand):
                 for choice in get_track_autocomplete_choices(current)[:25]
             ]
     
-    async def _get_active_track_names(self, guild_id: int) -> List[str]:
+    async def _get_active_trials_with_category(self, guild_id: int) -> List[Dict[str, str]]:
         """
-        Get list of track names that have active trials.
-        
+        Get list of active trials with track names and categories.
+
         Args:
             guild_id: Discord guild ID
-            
+
         Returns:
-            List of track names with active trials
+            List of dicts with 'display' (formatted) and 'value' (pipe-separated) keys
         """
         query = """
-            SELECT DISTINCT track_name
-            FROM weekly_trials 
-            WHERE guild_id = %s 
+            SELECT track_name, category
+            FROM weekly_trials
+            WHERE guild_id = %s
                 AND status = 'active'
-            ORDER BY track_name
+            ORDER BY track_name, category
         """
-        
+
         try:
             results = self._execute_query(query, (guild_id,))
-            return [row['track_name'] for row in results]
+            return [
+                {
+                    'display': f"{row['track_name']} ({row['category'].title()})",
+                    'value': f"{row['track_name']}|{row['category']}"
+                }
+                for row in results
+            ]
         except Exception:
             # Fallback to empty list if query fails
             return []
+
+    async def _get_active_trial_by_track_and_category(self, guild_id: int, track_name: str, category: str) -> Optional[Dict[str, Any]]:
+        """
+        Get active trial information for a specific track and category.
+
+        Args:
+            guild_id: Discord guild ID
+            track_name: Track name to search for
+            category: Category to search for
+
+        Returns:
+            Trial data dictionary or None if not found
+        """
+        query = """
+            SELECT
+                id,
+                trial_number,
+                track_name,
+                category,
+                gold_time_ms,
+                silver_time_ms,
+                bronze_time_ms,
+                start_date,
+                end_date,
+                status
+            FROM weekly_trials
+            WHERE guild_id = %s
+                AND track_name = %s
+                AND category = %s
+                AND status = 'active'
+            LIMIT 1
+        """
+
+        results = self._execute_query(query, (guild_id, track_name, category))
+        return results[0] if results else None
 
 
 # Command setup function for the main bot file

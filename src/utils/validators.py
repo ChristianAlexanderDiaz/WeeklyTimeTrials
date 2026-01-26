@@ -154,35 +154,61 @@ class InputValidator:
         return interaction.user.id
     
     @staticmethod
+    def validate_category(category: str) -> str:
+        """
+        Validate challenge category.
+
+        Args:
+            category: Category string ('shrooms' or 'shroomless')
+
+        Returns:
+            str: Validated category
+
+        Raises:
+            ValidationError: If category is invalid
+        """
+        if not category or not isinstance(category, str):
+            raise ValidationError("Category cannot be empty")
+
+        category = category.lower().strip()
+
+        if category not in ['shrooms', 'shroomless']:
+            raise ValidationError(
+                f"Invalid category '{category}'. Must be either 'shrooms' or 'shroomless'."
+            )
+
+        return category
+
+    @staticmethod
     def validate_goal_times(gold: Optional[str], silver: Optional[str], bronze: Optional[str]) -> tuple[Optional[int], Optional[int], Optional[int]]:
         """
         Validate and parse goal times for a new challenge.
-        
+
         Args:
             gold: Gold medal time string (optional)
             silver: Silver medal time string (optional)
             bronze: Bronze medal time string (optional)
-            
+
         Returns:
             tuple: (gold_ms, silver_ms, bronze_ms) in milliseconds or None values
-            
+
         Raises:
             ValidationError: If any goal time is invalid or inconsistent
         """
         # Count how many medal times are provided
         provided_times = [t for t in [gold, silver, bronze] if t is not None and t.strip()]
-        
+
         # If no medal times provided, return all None
         if len(provided_times) == 0:
             return None, None, None
-        
+
         # If some but not all medal times provided, require all or none
         if len(provided_times) != 3:
             raise ValidationError(
                 "Medal times must be either all provided or all omitted. "
                 f"You provided {len(provided_times)} out of 3 medal times."
             )
-        
+
         # All three times provided - validate them
         try:
             return TimeParser.parse_goal_times(gold, silver, bronze)
