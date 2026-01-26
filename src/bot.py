@@ -31,6 +31,7 @@ from .commands.decline_duel import setup_decline_duel_command
 from .commands.dueltimesave import setup_dueltimesave_command
 from .commands.duel_results import setup_duel_results_command
 from .commands.cancel_duel import setup_cancel_duel_command
+from .commands.end_duel import setup_end_duel_command
 
 # Configure logging
 logging.basicConfig(
@@ -122,6 +123,7 @@ class MKWTimeTrialBot(commands.Bot):
         setup_dueltimesave_command(self.tree)
         setup_duel_results_command(self.tree)
         setup_cancel_duel_command(self.tree)
+        setup_end_duel_command(self.tree)
 
         # Admin commands (no restrictions as specified)
         setup_set_challenge_command(self.tree)

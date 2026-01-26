@@ -250,53 +250,68 @@ class BotEvents:
 
     async def _mark_expired_duels(self) -> int:
         """
-        Mark pending or active duels as expired when their end_date is reached.
+        Handle expired duels when their end_date is reached.
 
-        For active duels, determines winner by default if only one user submitted.
+        For active duels: Determines winner and marks as 'completed'
+        For pending duels: Marks as 'expired'
 
         Returns:
-            Number of duels marked as expired
+            Number of duels processed
         """
         from ..utils.duel_manager import DuelManager
 
-        query = """
-            UPDATE challenges_1v1
-            SET status = 'expired'
-            WHERE status IN ('pending', 'active')
+        # First, handle active duels - complete them with winner determination
+        active_query = """
+            SELECT id, challenge_number, guild_id
+            FROM challenges_1v1
+            WHERE status = 'active'
                 AND end_date IS NOT NULL
                 AND end_date < CURRENT_TIMESTAMP
-            RETURNING id, challenge_number, guild_id, status
+        """
+
+        # Then handle pending duels - just mark as expired
+        pending_query = """
+            UPDATE challenges_1v1
+            SET status = 'expired'
+            WHERE status = 'pending'
+                AND end_date IS NOT NULL
+                AND end_date < CURRENT_TIMESTAMP
+            RETURNING id, challenge_number, guild_id
         """
 
         try:
-            results = db_manager.execute_query(query, fetch=True)
+            count = 0
 
-            # For active duels that expired, determine winner by default
-            for duel in results:
-                if duel['status'] == 'active':
-                    # Determine winner
-                    winner_user_id = DuelManager.determine_winner(duel['id'])
+            # Process active duels
+            active_duels = db_manager.execute_query(active_query, fetch=True)
+            for duel in active_duels:
+                # Determine winner
+                winner_user_id = DuelManager.determine_winner(duel['id'])
 
-                    # Update winner if determined
-                    if winner_user_id is not None:
-                        update_query = """
-                            UPDATE challenges_1v1
-                            SET winner_user_id = %s,
-                                status = 'completed'
-                            WHERE id = %s
-                        """
-                        db_manager.execute_query(update_query, (winner_user_id, duel['id']))
-
-                        logger.info(
-                            f"Duel #{duel['challenge_number']} in guild {duel['guild_id']} "
-                            f"completed by default (winner: {winner_user_id})"
-                        )
+                # Complete the duel with winner
+                complete_query = """
+                    UPDATE challenges_1v1
+                    SET status = 'completed',
+                        winner_user_id = %s
+                    WHERE id = %s
+                """
+                db_manager.execute_query(complete_query, (winner_user_id, duel['id']))
 
                 logger.info(
-                    f"Duel #{duel['challenge_number']} in guild {duel['guild_id']} has expired"
+                    f"Duel #{duel['challenge_number']} in guild {duel['guild_id']} "
+                    f"completed (winner: {winner_user_id if winner_user_id else 'tie/no submissions'})"
                 )
+                count += 1
 
-            return len(results)
+            # Process pending duels
+            pending_duels = db_manager.execute_query(pending_query, fetch=True)
+            for duel in pending_duels:
+                logger.info(
+                    f"Pending duel #{duel['challenge_number']} in guild {duel['guild_id']} has expired"
+                )
+                count += 1
+
+            return count
 
         except Exception as e:
             logger.error(f"Error marking expired duels: {e}")

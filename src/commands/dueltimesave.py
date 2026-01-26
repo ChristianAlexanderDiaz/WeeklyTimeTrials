@@ -91,39 +91,28 @@ class DuelTimeSaveCommand(AutocompleteCommand):
             previous_time_ms=previous_time_ms
         )
 
-        # Check if both users have submitted times
-        all_times = DuelManager.get_duel_times(challenge_id)
-        both_submitted = len(all_times) >= 2
+        # Always send submission confirmation and ping opponent with Tesla-style taunt
+        # Duel stays active until expiration or manual end - players can keep improving
+        time_str = TimeParser.format_time(time_ms)
+        taunt_message = DuelFormatter.create_tesla_taunt_message(
+            opponent_name=opponent_name,
+            submitter_name=submitter_name,
+            time_str=time_str
+        )
 
-        if both_submitted:
-            # Determine winner and complete the duel
-            winner_user_id = DuelManager.determine_winner(challenge_id)
-            await self._complete_duel(challenge_id, winner_user_id)
-
-            # Send completion message
-            await self._send_response(interaction, embed=embed, ephemeral=False)
-        else:
-            # Send submission confirmation and ping opponent with Tesla-style taunt
-            time_str = TimeParser.format_time(time_ms)
-            taunt_message = DuelFormatter.create_tesla_taunt_message(
-                opponent_name=opponent_name,
-                submitter_name=submitter_name,
-                time_str=time_str
+        try:
+            opponent_user = await interaction.guild.fetch_member(opponent_id)
+            await self._send_response(
+                interaction,
+                content=f"{opponent_user.mention}",
+                embed=embed,
+                ephemeral=False
             )
-
-            try:
-                opponent_user = await interaction.guild.fetch_member(opponent_id)
-                await self._send_response(
-                    interaction,
-                    content=f"{opponent_user.mention}",
-                    embed=embed,
-                    ephemeral=False
-                )
-                # Send taunt as follow-up
-                await interaction.followup.send(content=taunt_message, ephemeral=False)
-            except Exception as e:
-                logger.error(f"Error pinging opponent: {e}")
-                await self._send_response(interaction, embed=embed, ephemeral=False)
+            # Send taunt as follow-up
+            await interaction.followup.send(content=taunt_message, ephemeral=False)
+        except Exception as e:
+            logger.error(f"Error pinging opponent: {e}")
+            await self._send_response(interaction, embed=embed, ephemeral=False)
 
     async def _get_active_duel(self, guild_id: int, user_id: int, challenge_number: int):
         """
@@ -196,31 +185,6 @@ class DuelTimeSaveCommand(AutocompleteCommand):
         results = self._execute_query(query, params, fetch=True)
         if not results:
             raise CommandError("Failed to save time. Please try again.")
-
-    async def _complete_duel(self, challenge_id: int, winner_user_id: int) -> None:
-        """
-        Complete a duel by setting status to completed and recording winner.
-
-        Args:
-            challenge_id: Challenge ID
-            winner_user_id: Winner's user ID (or None for tie)
-
-        Raises:
-            CommandError: If completion fails
-        """
-        query = """
-            UPDATE challenges_1v1
-            SET status = 'completed',
-                winner_user_id = %s,
-                end_date = CURRENT_TIMESTAMP
-            WHERE id = %s
-                AND status = 'active'
-            RETURNING id
-        """
-
-        results = self._execute_query(query, (winner_user_id, challenge_id), fetch=True)
-        if not results:
-            raise CommandError("Failed to complete duel.")
 
     async def autocomplete_callback(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
         """
