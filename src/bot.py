@@ -25,6 +25,7 @@ from .commands.end_challenge import setup_end_challenge_command
 from .commands.set_leaderboard_channel import setup_set_leaderboard_channel_command
 from .commands.set_medal_times import setup_set_medal_times_command
 from .commands.remove_medal_times import setup_remove_medal_times_command
+from .commands.update_category import setup_update_category_command
 from .commands.create_duel import setup_create_duel_command
 from .commands.accept_duel import setup_accept_duel_command
 from .commands.decline_duel import setup_decline_duel_command
@@ -131,6 +132,7 @@ class MKWTimeTrialBot(commands.Bot):
         setup_set_leaderboard_channel_command(self.tree)
         setup_set_medal_times_command(self.tree)
         setup_remove_medal_times_command(self.tree)
+        setup_update_category_command(self.tree)
 
         logger.info("All commands registered successfully")
     

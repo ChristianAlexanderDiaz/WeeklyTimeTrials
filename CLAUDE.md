@@ -78,14 +78,48 @@ Used inheritance-based design with BaseCommand class providing:
 - Response formatting
 - Logging integration
 
+### Challenge Categories System
+
+The bot supports two types of time trials:
+- **Shrooms**: Items/mushrooms are allowed during the trial
+- **Shroomless**: No items/mushrooms allowed (pure racing skill)
+
+**Key Implementation Details:**
+- Category stored as VARCHAR(20) with CHECK constraint in `weekly_trials` table
+- Each track can have one active trial per category (shrooms AND shroomless simultaneously)
+- Unique constraint: `unique_active_trial_per_guild_track_category` ensures no duplicate active trials
+- Users must specify category when creating challenges with `/set-challenge`
+- Category can be updated after creation using `/update-category` command
+- Leaderboards are separate for each category
+
+### Live Leaderboard System
+
+The bot automatically creates and updates leaderboard messages in Discord:
+- **Automatic Creation**: When a challenge is created, a live leaderboard message is posted
+- **Auto-Updates**: Leaderboard updates when users submit times (no need to run `/leaderboard` repeatedly)
+- **Message Tracking**: Message ID and channel ID stored in `weekly_trials` table
+  - `leaderboard_message_id`: Discord message ID of the live leaderboard
+  - `leaderboard_channel_id`: Discord channel ID where leaderboard is posted
+- **Smart Updates**: If message is deleted, bot creates a new one and updates the stored ID
+- **Final Results**: When trial ends, leaderboard is updated to show final status
+
+**How It Works:**
+1. Admin creates challenge with `/set-challenge`
+2. Bot posts initial leaderboard embed in designated channel
+3. Bot stores message ID and channel ID in database
+4. When users submit times, bot edits the existing message with updated rankings
+5. If category is changed with `/update-category`, leaderboard is updated to reflect new category
+6. When trial ends, leaderboard shows final results
+
 ### Autocomplete Strategy
 
 Each command requiring track selection implements smart autocomplete:
-- `/weeklytimesave`: Shows only tracks with active trials
-- `/leaderboard`: Shows tracks with any trials (historical data)
+- `/weeklytimesave`: Shows tracks with active trials (includes category, e.g., "Rainbow Road (Shrooms)")
+- `/leaderboard`: Shows tracks with any trials, including category (historical data)
 - `/remove-time`: Shows only tracks where user has submissions
 - `/set-challenge`: Prioritizes tracks without active trials
-- `/end-challenge`: Shows only tracks with active trials
+- `/end-challenge`: Uses trial numbers (not track names)
+- `/update-category`: Uses trial numbers (not track names)
 
 ### Error Handling Hierarchy
 
@@ -103,22 +137,34 @@ CREATE TABLE weekly_trials (
     id SERIAL PRIMARY KEY,
     trial_number INTEGER NOT NULL,           -- For "Weekly Time Trial #N"
     track_name VARCHAR(100) NOT NULL,        -- Mario Kart World track
-    gold_time_ms INTEGER NOT NULL,           -- Goal times in milliseconds
-    silver_time_ms INTEGER NOT NULL,
-    bronze_time_ms INTEGER NOT NULL,
+    category VARCHAR(20) DEFAULT 'shrooms' NOT NULL,  -- 'shrooms' or 'shroomless'
+    gold_time_ms INTEGER,                    -- Goal times in milliseconds (optional)
+    silver_time_ms INTEGER,
+    bronze_time_ms INTEGER,
     start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     end_date TIMESTAMP,                      -- NULL = active forever
     status VARCHAR(20) DEFAULT 'active',     -- 'active', 'expired', 'ended'
     guild_id BIGINT NOT NULL,                -- Discord server ID
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    leaderboard_channel_id BIGINT,           -- Channel where live leaderboard is posted
+    leaderboard_message_id BIGINT,           -- Message ID of live leaderboard
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT chk_category CHECK (category IN ('shrooms', 'shroomless'))
 );
+
+-- Unique constraint: only one active trial per track per category per guild
+CREATE UNIQUE INDEX unique_active_trial_per_guild_track_category
+ON weekly_trials(guild_id, track_name, category) WHERE status = 'active';
 ```
 
 **Key Design Decisions:**
 - `trial_number` for human-readable naming instead of using database ID
+- `category` column with CHECK constraint enforces valid values ('shrooms' or 'shroomless')
 - `status` enum for trial lifecycle management
 - `end_date` nullable to support permanent trials if needed
-- Composite unique constraint prevents duplicate active trials per track
+- `leaderboard_message_id` and `leaderboard_channel_id` track live leaderboard messages for auto-updates
+- Unique constraint allows one active trial per track per category (can have both shrooms and shroomless active simultaneously)
+- Medal times are now optional (can be NULL for challenges without medal requirements)
 
 ### player_times Table
 
@@ -182,26 +228,126 @@ DEBUG=false
 - Graceful shutdown handling
 - Comprehensive logging for debugging
 
+## Bot Commands Reference
+
+### User Commands - Weekly Time Trials
+
+**`/weeklytimesave`**
+- Submit your time for an active weekly trial
+- Parameters: `track` (with category), `time` (MM:SS.mmm format)
+- Only accepts improvements (faster times than your current best)
+- Real-time medal calculation
+- Automatically updates live leaderboard
+
+**`/leaderboard`**
+- View leaderboard for any trial (active or historical)
+- Parameters: `track` (with category)
+- Shows rankings, times, and medals for all participants
+
+**`/active`**
+- View all currently active time trials
+- No parameters
+- Shows trial numbers, track names, categories, and expiration times
+
+**`/remove-time`**
+- Remove your submitted time from a trial
+- Parameters: `track` (with category)
+- Can only remove your own times
+
+### User Commands - 1v1 Duels
+
+**`/create-duel`**
+- Challenge another user to a 1v1 time trial duel
+- Parameters: `opponent`, `track`, `category`, `duration_days`
+
+**`/accept-duel`**
+- Accept a pending duel challenge
+- Parameters: `duel_id`
+
+**`/decline-duel`**
+- Decline a pending duel challenge
+- Parameters: `duel_id`
+
+**`/dueltimesave`**
+- Submit your time for an active duel
+- Parameters: `duel_id`, `time`
+
+**`/duel-results`**
+- View results of a completed duel
+- Parameters: `duel_id`
+
+**`/cancel-duel`**
+- Cancel a duel you created (before opponent accepts)
+- Parameters: `duel_id`
+
+**`/end-duel`**
+- Manually end an active duel
+- Parameters: `duel_id`
+
+### Admin Commands
+
+**`/set-challenge`**
+- Create a new weekly time trial challenge
+- Parameters: `track`, `duration_days`, `category` (shrooms/shroomless), optional medal times
+- Creates live leaderboard message automatically
+- Only one active trial per track per category allowed
+
+**`/end-challenge`**
+- Manually end an active trial before expiration
+- Parameters: `trial_number`
+- Updates live leaderboard to show final results
+- Trial becomes read-only
+
+**`/update-category`** ⭐ NEW
+- Change the category (shrooms/shroomless) of an existing trial
+- Parameters: `trial_number`, `category`
+- Automatically updates the live leaderboard with new category
+- Prevents conflicts (can't change to a category that already has an active trial for that track)
+- All existing times remain intact
+
+**`/set-medal-times`**
+- Update or add medal times to an existing trial
+- Parameters: `trial_number`, `gold_time`, `silver_time`, `bronze_time`
+- Updates live leaderboard with new medal thresholds
+
+**`/remove-medal-times`**
+- Remove medal requirements from a trial
+- Parameters: `trial_number`
+
+**`/set-leaderboard-channel`**
+- Set default channel for live leaderboard messages
+- Parameters: `channel`
+- All future trials will post leaderboards in this channel
+
 ## Time Trial Business Logic
 
 ### Trial Lifecycle
 
 1. **Creation**: Admin creates trial with `/set-challenge`
-   - Validates track not already active
-   - Enforces concurrent trial limits
-   - Sets goal times and duration
+   - Validates track doesn't already have active trial for chosen category
+   - Sets category (shrooms or shroomless)
+   - Sets optional medal times and duration
+   - Creates live leaderboard message in designated channel
 
 2. **Active Phase**: Users submit times with `/weeklytimesave`
    - Only accepts improvements (faster times)
    - Real-time medal calculation
    - Prevents duplicate submissions
+   - Live leaderboard auto-updates after each submission
 
-3. **Expiration**: Automatic or manual ending
+3. **Management**: Admins can update trial settings
+   - `/update-category`: Change between shrooms/shroomless
+   - `/set-medal-times`: Update or add medal thresholds
+   - `/remove-medal-times`: Remove medal requirements
+   - Live leaderboard updates automatically after changes
+
+4. **Expiration**: Automatic or manual ending
    - Background task marks expired trials
    - Manual ending via `/end-challenge`
    - Trials become read-only
+   - Live leaderboard shows final results
 
-4. **Cleanup**: Automated removal after grace period
+5. **Cleanup**: Automated removal after grace period
    - 3-day grace period for viewing results
    - Automatic deletion to prevent database bloat
 
