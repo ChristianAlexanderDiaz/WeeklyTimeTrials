@@ -172,13 +172,13 @@ class SaveTimeCommand(AutocompleteCommand):
         Args:
             time_ms: Time in milliseconds
             trial_data: Trial information with goal times
-            
+
         Returns:
             Medal level ('gold', 'silver', 'bronze') or None
         """
-        gold_ms = trial_data['gold_time_ms']
-        silver_ms = trial_data['silver_time_ms']
-        bronze_ms = trial_data['bronze_time_ms']
+        gold_ms = trial_data.get('gold_time_ms')
+        silver_ms = trial_data.get('silver_time_ms')
+        bronze_ms = trial_data.get('bronze_time_ms')
         
         # If no medal times are set, no medals can be earned
         if gold_ms is None or silver_ms is None or bronze_ms is None:

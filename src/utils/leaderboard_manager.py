@@ -215,9 +215,9 @@ class LeaderboardManager:
     @staticmethod
     async def _get_leaderboard_data(trial_id: int, trial_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get leaderboard data for a trial with medal calculations."""
-        gold_ms = trial_data['gold_time_ms']
-        silver_ms = trial_data['silver_time_ms']
-        bronze_ms = trial_data['bronze_time_ms']
+        gold_ms = trial_data.get('gold_time_ms')
+        silver_ms = trial_data.get('silver_time_ms')
+        bronze_ms = trial_data.get('bronze_time_ms')
         
         query = """
             SELECT 

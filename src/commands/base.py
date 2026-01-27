@@ -341,33 +341,37 @@ class BaseCommand(ABC):
         Args:
             trial_id: Trial ID
             trial_data: Trial information including goal times
-            
+
         Returns:
             List of player times with rankings and medal information
         """
-        gold_ms = trial_data['gold_time_ms']
-        silver_ms = trial_data['silver_time_ms']
-        bronze_ms = trial_data['bronze_time_ms']
-        
+        gold_ms = trial_data.get('gold_time_ms')
+        silver_ms = trial_data.get('silver_time_ms')
+        bronze_ms = trial_data.get('bronze_time_ms')
+
         query = """
-            SELECT 
+            SELECT
                 ROW_NUMBER() OVER (ORDER BY time_ms ASC) as rank,
                 user_id,
                 time_ms,
                 submitted_at,
                 updated_at,
-                CASE 
-                    WHEN time_ms <= %s THEN 'gold'
-                    WHEN time_ms <= %s THEN 'silver'  
-                    WHEN time_ms <= %s THEN 'bronze'
+                CASE
+                    WHEN %s IS NOT NULL AND %s IS NOT NULL AND %s IS NOT NULL THEN
+                        CASE
+                            WHEN time_ms <= %s THEN 'gold'
+                            WHEN time_ms <= %s THEN 'silver'
+                            WHEN time_ms <= %s THEN 'bronze'
+                            ELSE 'none'
+                        END
                     ELSE 'none'
                 END as medal
-            FROM player_times 
+            FROM player_times
             WHERE trial_id = %s
             ORDER BY time_ms ASC
         """
-        
-        return self._execute_query(query, (gold_ms, silver_ms, bronze_ms, trial_id))
+
+        return self._execute_query(query, (gold_ms, silver_ms, bronze_ms, gold_ms, silver_ms, bronze_ms, trial_id))
     
     async def _get_next_trial_number(self, guild_id: int) -> int:
         """

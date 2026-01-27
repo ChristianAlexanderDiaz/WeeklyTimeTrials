@@ -39,17 +39,13 @@ class UpdateCategoryCommand(AutocompleteCommand):
             category: New category ('shrooms' or 'shroomless')
         """
         guild_id = self._validate_guild_interaction(interaction)
-        user_id = self._validate_user_interaction(interaction)
 
         # Validate trial number
         if trial_number <= 0:
             raise ValidationError("Trial number must be a positive integer")
 
         # Validate category
-        try:
-            category = InputValidator.validate_category(category)
-        except ValidationError as e:
-            raise ValidationError(e)
+        category = InputValidator.validate_category(category)
 
         # Get trial by trial number (any status - can update active or ended)
         trial_data = await self._get_trial_by_number(guild_id, trial_number)
@@ -87,15 +83,20 @@ class UpdateCategoryCommand(AutocompleteCommand):
         # Update live leaderboard message if it exists
         from ..utils.leaderboard_manager import update_live_leaderboard
 
+        leaderboard_updated = False
         try:
             # Refresh trial data with new category
             updated_trial_data = await self._get_trial_by_number(guild_id, trial_number)
             if updated_trial_data:
-                await update_live_leaderboard(updated_trial_data, interaction.guild)
-                logger.info(f"Updated live leaderboard for trial #{trial_number} with new category")
+                leaderboard_updated = await update_live_leaderboard(updated_trial_data, interaction.guild)
+                if leaderboard_updated:
+                    logger.info(f"Updated live leaderboard for trial #{trial_number} with new category")
+                else:
+                    logger.warning(f"Failed to update live leaderboard for trial #{trial_number}")
         except Exception as e:
             # Don't fail the command if leaderboard update fails
             logger.error(f"Error updating live leaderboard: {e}")
+            leaderboard_updated = False
 
         # Create success response
         embed = discord.Embed(
@@ -107,13 +108,17 @@ class UpdateCategoryCommand(AutocompleteCommand):
             color=EmbedFormatter.COLOR_SUCCESS
         )
 
+        # Build what changed message conditionally based on leaderboard update success
+        what_changed_parts = [f"• The trial category has been updated to **{category.title()}**"]
+        if leaderboard_updated:
+            what_changed_parts.append("• The live leaderboard has been updated with the new category")
+        else:
+            what_changed_parts.append("• Live leaderboard update failed (check logs)")
+        what_changed_parts.append("• All existing times remain intact")
+
         embed.add_field(
             name="ℹ️ What Changed",
-            value=(
-                f"• The trial category has been updated to **{category.title()}**\n"
-                f"• The live leaderboard has been updated with the new category\n"
-                f"• All existing times remain intact"
-            ),
+            value="\n".join(what_changed_parts),
             inline=False
         )
 
