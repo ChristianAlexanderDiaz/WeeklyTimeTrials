@@ -91,27 +91,55 @@ class DuelTimeSaveCommand(AutocompleteCommand):
             previous_time_ms=previous_time_ms
         )
 
-        # Always send submission confirmation and ping opponent with Tesla-style taunt
-        # Duel stays active until expiration or manual end - players can keep improving
-        time_str = TimeParser.format_time(time_ms)
-        taunt_message = DuelFormatter.create_tesla_taunt_message(
-            opponent_name=opponent_name,
-            submitter_name=submitter_name,
-            time_str=time_str
-        )
-
+        # Only ping opponent if this time beats theirs (creates back-and-forth competition)
+        # Get opponent's current time to determine if we should ping
         try:
-            opponent_user = await interaction.guild.fetch_member(opponent_id)
-            # Combine ping and taunt in the content
-            full_message = f"{opponent_user.mention}\n\n{taunt_message}"
-            await self._send_response(
-                interaction,
-                content=full_message,
-                embed=embed,
-                ephemeral=False
-            )
+            opponent_time_data = DuelManager.get_user_time_for_duel(challenge_id, opponent_id)
         except Exception as e:
-            logger.error(f"Error pinging opponent: {e}")
+            logger.error(f"Error getting opponent time for duel: {e}", exc_info=True)
+            # If we can't get opponent's time, default to not pinging
+            opponent_time_data = None
+
+        should_ping = False
+
+        if opponent_time_data is None:
+            # Opponent has no time yet - ping them to let them know you've submitted
+            should_ping = True
+        elif time_ms < opponent_time_data['time_ms']:
+            # Your time beats theirs - ping them because you took the lead!
+            should_ping = True
+        # else: Your time is slower or equal - don't ping (no need to spam)
+
+        if should_ping:
+            # Send confirmation with ping and taunt message
+            time_str = TimeParser.format_time(time_ms)
+            taunt_message = DuelFormatter.create_tesla_taunt_message(
+                opponent_name=opponent_name,
+                submitter_name=submitter_name,
+                time_str=time_str
+            )
+
+            try:
+                opponent_user = await interaction.guild.fetch_member(opponent_id)
+                # Combine ping and taunt in the content
+                full_message = f"{opponent_user.mention}\n\n{taunt_message}"
+                await self._send_response(
+                    interaction,
+                    content=full_message,
+                    embed=embed,
+                    ephemeral=False
+                )
+            except discord.Forbidden:
+                logger.exception(f"Missing permissions to fetch member {opponent_id}")
+                await self._send_response(interaction, embed=embed, ephemeral=False)
+            except discord.NotFound:
+                logger.exception(f"Opponent member {opponent_id} not found in guild")
+                await self._send_response(interaction, embed=embed, ephemeral=False)
+            except discord.HTTPException as e:
+                logger.exception(f"Discord HTTP error fetching opponent {opponent_id}: {e}")
+                await self._send_response(interaction, embed=embed, ephemeral=False)
+        else:
+            # Just send the embed without pinging (time didn't beat opponent's)
             await self._send_response(interaction, embed=embed, ephemeral=False)
 
     async def _get_active_duel(self, guild_id: int, user_id: int, challenge_number: int):
